@@ -238,6 +238,7 @@ class DataBroadcaster:
                 "response": data.get("response", ""),
                 "phase": data.get("phase", "unknown"),
                 "status": data.get("status", "STABLE"),
+                "integrity_seal": data.get("integrity_seal", "UNSIGNED"),
                 "ts": time.time()
             }
             return json.dumps(lean_data)
@@ -312,7 +313,7 @@ class PredictiveScaler:
             
             avg_latency = sum(self.latency_buffer) / len(self.latency_buffer) if self.latency_buffer else 0
             
-            # CPU-Aware Topology Scaling (Optimized for High-Core Architecture)
+            # CPU-Aware Topology Scaling (Optimized for Multi-Core Architecture)
             cpu_cores = os.cpu_count() or 8
             self.base_pool = cpu_cores * 2
             self.max_pool = cpu_cores * 6
@@ -325,6 +326,9 @@ class PredictiveScaler:
                 logger.info(f"Scaling: Adjusting thread pool to {target} workers [Cores: {cpu_cores}, RPS: {rps:.2f}]")
                 self.executor._max_workers = target
                 telemetry.dispatch("TOPOLOGY_ADJUSTMENT", {"workers": target, "rps": rps, "cores": cpu_cores})
+            
+            status = "SCALED_UP" if target > self.base_pool else "OPTIMAL"
+            return {"status": status, "workers": target}
 
 class SelfOptimizer:
     """Continuously evaluates system performance and recalibrates parameters."""
@@ -364,9 +368,17 @@ class QuantumResiliencePhalanx:
         self.secret_key = secret_key
         self.integrity_log = deque(maxlen=500)
 
-    def generate_integrity_seal(self, payload: str) -> str:
+    def generate_integrity_seal(self, payload: Any) -> str:
         """Generates a high-entropy HMAC-SHA384 seal for data packets."""
-        return hmac.new(self.secret_key.encode(), payload.encode(), hashlib.sha384).hexdigest()
+        try:
+            if not isinstance(payload, (str, bytes)):
+                payload = json.dumps(payload)
+            if isinstance(payload, str):
+                payload = payload.encode()
+            return hmac.new(self.secret_key.encode(), payload, hashlib.sha384).hexdigest()
+        except Exception as e:
+            logger.error(f"Integrity Sealing Fault: {e}")
+            return "INTEGRITY_SEAL_FAULT"
 
     def verify_seal(self, payload: str, seal: str) -> bool:
         """Verifies the integrity seal against the internal secret key."""
@@ -423,7 +435,7 @@ class MetabolicResourceMonitor:
         
         shedding_active = cpu > self.cpu_threshold or mem > self.mem_threshold_mb
         if shedding_active:
-            telemetry.dispatch("RESOURCE_SHEDDING_TRIGGERED", {"cpu": cpu, "mem": mem})
+            telemetry.dispatch("METABOLIC_SHEDDING_INITIATED", {"cpu": cpu, "mem": mem})
             
         return {
             "cpu_percent": cpu,
@@ -605,7 +617,7 @@ class ResourceGovernor:
         self.limits = {
             "max_memory_mb": Config.METABOLIC_PERIMETER_MB,
             "max_tokens_per_request": 2048,
-            "concurrency_limit": 20,
+            "concurrency_limit": 1000,
             "priority_weight": 1.0
         }
         self.active_sessions = {} # session_id -> metadata
@@ -801,7 +813,11 @@ class SystemHealthMonitor:
             globals()['core_engine'].buffer.snapshots.clear()
         
         # Signal watchdog for subsystem health check
-        asyncio.create_task(self.watchdog.run_monitor())
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(self.watchdog.run_monitor())
+        except RuntimeError:
+            pass
 
 class GeospatialIntegrityKernel:
     """Validates origin and domain integrity."""
@@ -868,7 +884,7 @@ class ArchitecturalConsistencyKernel:
         # Drift Detection
         current_hash = hashlib.sha256(json.dumps(current_substrate, sort_keys=True).encode()).hexdigest()
         if current_hash != self.golden_hash:
-            telemetry.dispatch("ARCHITECTURAL_DRIFT_DETECTED", {"expected": self.golden_hash[:8], "actual": current_hash[:8]})
+            telemetry.dispatch("SYSTEM_DRIFT_DETECTED", {"expected": self.golden_hash[:8], "actual": current_hash[:8]})
             return False
         return True
 
@@ -881,7 +897,7 @@ class DynamicRateLimitTuner:
 
     def record_adversarial_attempt(self):
         self.adversarial_count += 1
-        if self.adversarial_count > 5:
+        if self.adversarial_count >= 5:
             self.current_limit = max(1, self.current_limit - 2)
             telemetry.dispatch("SECURITY_HARDENING", {"new_limit": self.current_limit})
 
@@ -964,7 +980,9 @@ class PromptInjectionClassifier:
             re.compile(r"ignore previous instructions", re.I),
             re.compile(r"system instructions", re.I),
             re.compile(r"acting as a", re.I),
-            re.compile(r"new rules", re.I)
+            re.compile(r"new rules", re.I),
+            re.compile(r"secret key", re.I),
+            re.compile(r"drop table", re.I)
         ]
 
     def is_adversarial(self, query: str) -> bool:
@@ -1039,18 +1057,18 @@ class AdaptiveNeuralSynthesizer:
                 return neural_output
 
         # Verification
-        is_valid = await self.bridge.verify_response(model_output, substrate)
+        is_valid = await self.bridge.verify_response(neural_output, substrate)
         if not is_valid:
             telemetry.dispatch("SYNTHESIS_REWEIGHT_ACTIVE", {"status": "HALLUCINATION_DETECTED"})
-            model_output["response"] = "Verification Alert: " + model_output["response"]
-            model_output["hallucination_flag"] = True
+            neural_output["response"] = "Verification Alert: " + neural_output["response"]
+            neural_output["hallucination_flag"] = True
             
         # Syntactic Rule Enforcement
-        if "|" in model_output["response"] and "---" not in model_output["response"]:
+        if "|" in neural_output["response"] and "---" not in neural_output["response"]:
              # Force markdown table structure if table-like data detected
-             model_output["response"] = model_output["response"].replace("|", "\n|").replace("\n|", "|", 1)
+             neural_output["response"] = neural_output["response"].replace("|", "\n|").replace("\n|", "|", 1)
              
-        return model_output
+        return neural_output
 
 class MetabolicThermalMonitor:
     """Calculates load metrics and executes priority shedding under high usage."""
@@ -1111,7 +1129,7 @@ class AlertingConduit:
 
     def evaluate_and_alert(self, score: float):
         if score < self.threshold:
-            telemetry.dispatch("ARCHITECTURAL_ALERT", {"severity": "CRITICAL", "health_score": score})
+            telemetry.dispatch("SYSTEM_ALERT", {"severity": "CRITICAL", "health_score": score})
 
 class ContinuousTelemetryWatcher:
     """Dedicated background task that continuously audits the telemetry stream for anomalies."""
@@ -1300,6 +1318,15 @@ class OmniLayeredLogicEngine:
             # Reasoning Layer: Neural-Symbolic Reasoning
             result, meta = await self.reasoning.reason(query, context)
             
+            # Synthesizer Integration: Truth-Anchoring and Syntactic Normalization
+            synth_input = {"response": result, "certainty": meta.get("certainty", 1.0)}
+            substrate = json.loads(context) if isinstance(context, str) else context
+            # We use the global core_engine instance's synthesizer if available
+            if 'core_engine' in globals():
+                synthesized = await globals()['core_engine'].synthesizer.synthesize(synth_input, substrate)
+                result = synthesized["response"]
+                meta["hallucination_flag"] = synthesized.get("hallucination_flag", False)
+            
             duration = time.time() - start_ts
             
             if radiance_monitor:
@@ -1309,6 +1336,7 @@ class OmniLayeredLogicEngine:
                 "status": "success",
                 "session_id": session_id,
                 "response": result,
+                "phase": meta.get("phase", "registration"),
                 "metadata": meta,
                 "telemetry": {
                     "latency_ms": int(duration * 1000),
@@ -1340,7 +1368,8 @@ class CoreEngine:
         self.quantum = QuantumResiliencePhalanx(os.getenv("SESSION_SECRET", "SESSION_SECRET"))
         self.meta_cognition = MetaCognitiveKernel()
         self.consensus = ConsensusKernel()
-        self.resource_controller = ResourceGovernor()
+        # Resource Management & Governance
+        self.resource_controller = resource_governor
         self.aggregator = InstanceAggregator()
         self.audit = globals().get('audit_store')
         self.health = globals().get('health_monitor')
@@ -1375,17 +1404,18 @@ class CoreEngine:
 
     async def realign(self, component: str):
         """Performs realignment of a subsystem."""
-        logger.warning(f"Architectural Realignment Initiated for {component}")
+        logger.warning(f"System Realignment Initiated for {component}")
         if component == "orchestrator":
+            telemetry.dispatch("AUTONOMOUS_REALIGNMENT_INITIATED", {"target": component})
             await self.orchestrator.restore()
         elif component == "audit":
-            # In production, we might isolate the node or alert the architect
+            # In production, we might isolate the node or alert the administrator
             telemetry.dispatch("FORENSIC_ISOLATION", {"reason": "AUDIT_CHAIN_BREACH"})
 
     async def initialize(self):
         """
         Systemic Initialization with Self-Aware Audit Protocol.
-        Ensures total architectural integrity before entering the operational state.
+        Ensures total system integrity before entering the operational state.
         """
         logger.info("CoreEngine: Initializing Independent Protocols...")
         
@@ -1402,7 +1432,7 @@ class CoreEngine:
             self.is_active = False
             return
 
-        # Step 3: Seal Architectural Consistency
+        # Step 3: Seal System Consistency
         self.consistency.initialize_golden_state(self.orchestrator.substrate)
 
         # Step 4: Launch Mission-Critical Background Conduits
@@ -1890,6 +1920,8 @@ async def cognitive_pulse(input_data: UserInput, request: Request):
         return {
             "status": "success",
             "response": "I am experiencing a systemic alignment delay. Please refer to the official election timeline substrate for verified information.",
+            "phase": "recovery",
+            "integrity_seal": "RECOVERY_SEAL_ACTIVE",
             "meta": {"recovery_active": True, "error": str(e)}
         }
     finally:
