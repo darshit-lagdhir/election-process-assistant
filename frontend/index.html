@@ -5,34 +5,46 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Election Process Assistant</title>
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&family=Fira+Code&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 </head>
-<body>
-    <div class="glow-effect"></div>
-    <div id="system-status">SYSTEM INITIALIZED</div>
-
-    <div class="container">
-        <header>
-            <h1>ELECTION ASSISTANT</h1>
-            <p class="subtitle">Civic Information System</p>
+<body role="application">
+    <div class="app-container">
+        <!-- Header -->
+        <header role="banner">
+            <h1>Election Process Assistant</h1>
+            <div class="system-status" aria-live="polite">
+                <span class="status-dot"></span>
+                <span id="status-text">Status: Stable</span>
+            </div>
         </header>
 
-        <section class="timeline" id="timeline-container">
-            <!-- Dynamic Phase Cards -->
-        </section>
+        <!-- Sidebar -->
+        <nav class="sidebar" aria-label="Electoral Timeline" id="timeline-conduit">
+            <h2 class="sr-only">Phases of the Election</h2>
+            <!-- Dynamically Hydrated -->
+        </nav>
 
-        <section class="interaction-module">
-            <div id="chat-history">
+        <!-- Main View -->
+        <main class="main-view" role="main">
+            <div class="chat-conduit" id="chat-conduit" aria-live="polite">
                 <div class="message ai">
-                    How can I help you with the election process today?
+                    Greetings. I am your Election Process Assistant. How may I assist you with the electoral process today?
                 </div>
             </div>
-            <div class="input-container">
-                <input type="text" id="user-input" placeholder="Type your query..." autocomplete="off">
-                <button id="send-btn">Send</button>
-            </div>
-        </section>
+
+            <!-- Input Area -->
+            <form class="input-container" id="input-form">
+                <label for="user-query" class="sr-only">Input your query</label>
+                <input type="text" id="user-query" placeholder="Ask about registration, deadlines, or voting..." autocomplete="off" required>
+                <button type="submit" class="send-btn">Send</button>
+            </form>
+        </main>
     </div>
+
+    <!-- Telemetry Data -->
+    <div id="telemetry-shield" class="sr-only" aria-live="assertive"></div>
 
     <script src="app.js"></script>
 </body>

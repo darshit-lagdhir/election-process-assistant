@@ -1,141 +1,165 @@
-const API_BASE = "http://localhost:8000";
-let sessionId = null;
-let electionData = null;
-let currentPhase = 'registration';
+/**
+ * Main application controller for the Election Process Assistant.
+ */
 
-// System status log
-const logStatus = (msg) => {
-    const statusEl = document.getElementById('system-status');
-    if (statusEl) statusEl.innerText = msg;
-    console.log(`[STATUS] ${msg}`);
-};
+class StateManager {
+    constructor() {
+        this.state = {
+            currentPhase: 'registration',
+            session_id: null,
+            isHydrated: false,
+            latency: 0
+        };
+        this.subscribers = [];
+    }
 
-// Sector Epsilon: The Resilient Conduit
-async function fetchWithRetry(url, options = {}, retries = 3) {
-    for (let i = 0; i < retries; i++) {
+    update(newState) {
+        this.state = { ...this.state, ...newState };
+        this.subscribers.forEach(sub => sub(this.state));
+    }
+
+    subscribe(callback) {
+        this.subscribers.push(callback);
+    }
+}
+
+const Store = new StateManager();
+
+class OcularAperture {
+    constructor() {
+        this.chatConduit = document.getElementById('chat-conduit');
+        this.timelineConduit = document.getElementById('timeline-conduit');
+        this.inputForm = document.getElementById('input-form');
+        this.queryInput = document.getElementById('user-query');
+        this.statusText = document.getElementById('status-text');
+        
+        this.init();
+    }
+
+    async init() {
+        this.inputForm.addEventListener('submit', (e) => this.handleTransmission(e));
+        Store.subscribe((state) => this.render(state));
+        
+        await this.hydrateSubstrate();
+    }
+
+    /**
+     * Real-time data hydration.
+     */
+    async hydrateSubstrate() {
         try {
-            const response = await fetch(url, options);
-            if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
-            return await response.json();
-        } catch (err) {
-            logStatus(`RECONNECTION ATTEMPT ${i+1}/${retries}...`);
-            if (i === retries - 1) throw err;
-            await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+            const response = await fetch('/data');
+            const { data, checksum } = await response.json();
+            this.renderTimeline(data.phases);
+            Store.update({ isHydrated: true, checksum });
+            this.logTelemetry("SUBSTRATE_SYNC", { checksum });
+        } catch (error) {
+            this.handleSystemicFault("Hydration Failure", error);
         }
     }
-}
 
-// Sector Gamma: Progressive Disclosure Rendering
-function renderTimeline() {
-    const container = document.getElementById('timeline-container');
-    if (!electionData) return;
-
-    container.innerHTML = electionData.phases.map(phase => `
-        <div class="phase-card ${phase.id === currentPhase ? 'active' : ''}" id="phase-${phase.id}" onclick="setPhase('${phase.id}')">
-            <h3 class="phase-title">${phase.title}</h3>
-            <p class="phase-desc">${phase.description}</p>
-            <div class="status-badge status-${phase.status}">${phase.status.toUpperCase()}</div>
-        </div>
-    `).join('');
-    
-    logStatus(`PHASE: ${currentPhase.toUpperCase()}`);
-}
-
-function setPhase(phaseId) {
-    currentPhase = phaseId;
-    renderTimeline();
-    addMessage('ai', `Navigated to ${phaseId.toUpperCase()} phase. How can I assist you with this stage?`);
-}
-
-// Sector Alpha: Agentic Interaction
-async function dispatchQuery() {
-    const input = document.getElementById('user-input');
-    const query = input.value.trim();
-    if (!query) return;
-
-    addMessage('user', query);
-    input.value = '';
-    
-    logStatus("PROCESSING COGNITIVE KERNEL...");
-
-    try {
-        const data = await fetchWithRetry(`${API_BASE}/query`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query, session_id: sessionId })
-        });
-
-        sessionId = data.session_id;
-        addMessage('ai', data.response);
-
-        if (data.phase && data.phase !== currentPhase) {
-            currentPhase = data.phase;
-            renderTimeline();
-        }
-    } catch (err) {
-        addMessage('ai', "Error: Connection lost.");
+    /**
+     * System metrics and logging.
+     */
+    logTelemetry(event, details) {
+        console.log(`[TELEMETRY] ${event}`, details);
+        const shield = document.getElementById('telemetry-shield');
+        shield.textContent = `Event: ${event} Status: Stable`;
     }
-}
 
-function addMessage(type, text) {
-    const history = document.getElementById('chat-history');
-    const msg = document.createElement('div');
-    msg.className = `message ${type}`;
-    msg.innerText = text;
-    history.appendChild(msg);
-    history.scrollTop = history.scrollHeight;
-}
+    renderTimeline(phases) {
+        this.timelineConduit.innerHTML = phases.map(phase => `
+            <div class="timeline-node ${Store.state.currentPhase === phase.id ? 'active' : ''}" 
+                 onclick="window.aperture.jumpToPhase('${phase.id}')"
+                 role="button"
+                 aria-pressed="${Store.state.currentPhase === phase.id}">
+                <strong>${phase.title}</strong>
+                <p style="font-size: 0.75rem; color: var(--radiance-text-secondary);">${phase.id}</p>
+            </div>
+        `).join('');
+    }
 
-// Sector Delta: Command Palette & Accessibility
-document.addEventListener('keydown', (e) => {
-    // Ctrl+K for Command Palette
-    if (e.ctrlKey && e.key === 'k') {
+    async handleTransmission(e) {
         e.preventDefault();
-        const cmd = prompt("Enter Command (e.g., 'jump registration', 'status', 'help'):");
-        if (cmd) processCommand(cmd.toLowerCase());
-    }
-});
+        const query = this.queryInput.value.trim();
+        if (!query) return;
 
-function processCommand(cmd) {
-    const tokens = cmd.split(' ');
-    const action = tokens[0];
-    const target = tokens[1];
+        const sanitizedQuery = query.replace(/[<>]/g, ""); 
+        this.appendMessage('user', sanitizedQuery);
+        this.queryInput.value = '';
+        this.queryInput.disabled = true;
 
-    // Basic keyword matching for navigation
-    const phaseMap = {
-        'reg': 'registration', 'register': 'registration', 'registration': 'registration',
-        'ver': 'verification', 'verify': 'verification', 'verification': 'verification',
-        'poll': 'polling', 'vote': 'polling', 'polling': 'polling',
-        'res': 'results', 'results': 'results'
-    };
+        const startTime = performance.now();
 
-    if (action === 'jump' && target) {
-        const phase = phaseMap[target];
-        if (phase) {
-            setPhase(phase);
-        } else {
-            alert("Unknown phase. Available: registration, verification, polling, results.");
+        // Resilience and retry logic
+        const transmit = async (retries = 3) => {
+            try {
+                const response = await fetch('/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        query: sanitizedQuery, 
+                        session_id: Store.state.session_id 
+                    })
+                });
+                if (!response.ok) throw new Error(`HTTP_${response.status}`);
+                return await response.json();
+            } catch (err) {
+                if (retries > 0) {
+                    this.logTelemetry("RETRANSMISSION_ATTEMPT", { remaining: retries });
+                    await new Promise(r => setTimeout(r, 1000));
+                    return transmit(retries - 1);
+                }
+                throw err;
+            }
+        };
+
+        try {
+            const result = await transmit();
+            const latency = performance.now() - startTime;
+            
+            this.appendMessage('ai', result.response);
+            Store.update({ 
+                currentPhase: result.phase, 
+                session_id: result.session_id,
+                latency: latency
+            });
+            this.logTelemetry("MODEL_RESPONSE_PULSE", { latency: latency.toFixed(2) });
+            
+        } catch (error) {
+            this.appendMessage('ai', "Systemic interruption detected after re-transmission attempts. Please check your connection.");
+            this.handleSystemicFault("Transmission Failure", error);
+        } finally {
+            this.queryInput.disabled = false;
+            this.queryInput.focus();
         }
-    } else if (action === 'status') {
-        alert(`System Status: GENESIS ACTIVE\nMetabolic Perimeter: STABLE\nPhase: ${currentPhase}`);
-    } else {
-        alert("Commands: 'jump <phase>', 'status', 'help'");
+    }
+
+    appendMessage(role, text) {
+        const msg = document.createElement('div');
+        msg.className = `message ${role}`;
+        msg.textContent = text;
+        this.chatConduit.appendChild(msg);
+        this.chatConduit.scrollTop = this.chatConduit.scrollHeight;
+    }
+
+    jumpToPhase(phaseId) {
+        Store.update({ currentPhase: phaseId });
+        this.appendMessage('ai', `Navigating to ${phaseId} module. What specific information do you require?`);
+        this.hydrateSubstrate(); // Refresh to ensure sync
+    }
+
+    handleSystemicFault(type, error) {
+        console.error(`[FAULT] ${type}:`, error);
+        this.statusText.textContent = `Status: ${type}`;
+        this.statusText.parentElement.querySelector('.status-dot').style.background = '#ef4444';
+    }
+
+    render(state) {
+        // Dynamic re-rendering logic for timeline
+        this.hydrateSubstrate(); 
     }
 }
 
-// Initialization
-document.getElementById('send-btn').onclick = dispatchQuery;
-document.getElementById('user-input').onkeypress = (e) => { if (e.key === 'Enter') dispatchQuery(); };
-
-(async () => {
-    try {
-        const response = await fetchWithRetry(`${API_BASE}/data`);
-        electionData = response.data;
-        logStatus(`DATA VERIFIED | CHECKSUM: ${response.checksum.substring(0, 8)}`);
-        renderTimeline();
-        logStatus("SYSTEM INITIALIZED");
-    } catch (err) {
-        logStatus("BOOT FAILURE");
-        alert("The Hadronic Core is not responding. Ensure the backend is active.");
-    }
-})();
+// Global exposure for event handlers
+window.aperture = new OcularAperture();

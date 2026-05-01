@@ -1,0 +1,94 @@
+{
+  "election_cycle": "2026 General Election",
+  "version": "1.0.0",
+  "jurisdiction": "National",
+  "phases": [
+    {
+      "id": "registration",
+      "title": "Voter Registration",
+      "status": "active",
+      "description": "The initial phase where citizens enroll in the national voter database.",
+      "why": "Registration ensures that only eligible citizens participate and prevents double voting.",
+      "deadline": "2026-06-15",
+      "requirements": {
+        "eligibility": ["Citizen of the country", "18 years or older on election day"],
+        "documentation": [
+          {
+            "type": "Identity Proof",
+            "examples": ["National ID Card", "Passport", "Driver's License"],
+            "required": true
+          },
+          {
+            "type": "Address Proof",
+            "examples": ["Utility Bill", "Bank Statement", "Rent Agreement"],
+            "required": true
+          }
+        ]
+      },
+      "steps": [
+        {"id": "reg_1", "title": "Obtain Form A", "desc": "Download or pick up the registration form from a local office."},
+        {"id": "reg_2", "title": "Submit Documentation", "desc": "Submit the completed form along with required ID and address proofs."}
+      ]
+    },
+    {
+      "id": "verification",
+      "title": "Voter List Verification",
+      "status": "upcoming",
+      "description": "Reviewing and correcting the preliminary voter list.",
+      "why": "Verification allows citizens to correct errors in their records before the final roll is published.",
+      "deadline": "2026-07-30",
+      "requirements": {
+        "eligibility": ["Must have completed the Registration phase"],
+        "documentation": [
+          {
+            "type": "Acknowledgement Slip",
+            "examples": ["Registration Receipt", "Application Reference Number"],
+            "required": true
+          }
+        ]
+      },
+      "steps": [
+        {"id": "ver_1", "title": "Check Preliminary List", "desc": "Visit the online portal or local center to verify your entry."},
+        {"id": "ver_2", "title": "File Corrections", "desc": "Submit a correction form if your name or details are incorrect."}
+      ]
+    },
+    {
+      "id": "polling",
+      "title": "Polling Day",
+      "status": "locked",
+      "description": "The final stage where citizens cast their ballots.",
+      "why": "Polling day is the execution of the democratic mandate.",
+      "deadline": "2026-08-15",
+      "requirements": {
+        "eligibility": ["Registered and verified voter", "Possession of Voter ID card"],
+        "documentation": [
+          {
+            "type": "Voter ID Card",
+            "examples": ["EPIC Card", "Digital Voter ID"],
+            "required": true
+          }
+        ]
+      },
+      "steps": [
+        {"id": "poll_1", "title": "Locate Station", "desc": "Find your assigned polling booth using the station locator."},
+        {"id": "poll_2", "title": "Cast Vote", "desc": "Present ID, get inked, and cast your ballot in the machine."}
+      ]
+    },
+    {
+      "id": "results",
+      "title": "Results and Tabulation",
+      "status": "locked",
+      "description": "The counting of votes and announcement of outcomes.",
+      "why": "Tabulation ensures the transparency and legitimacy of the election outcome.",
+      "deadline": "2026-08-20",
+      "requirements": {
+        "eligibility": ["General Public"],
+        "documentation": []
+      },
+      "steps": [
+        {"id": "res_1", "title": "Real-time Monitoring", "desc": "Follow official broadcast channels for live counting updates."},
+        {"id": "res_2", "title": "Final Certification", "desc": "Review the certified results published by the Election Commission."}
+      ]
+    }
+  ]
+}
