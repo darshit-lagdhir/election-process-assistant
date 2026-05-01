@@ -464,14 +464,14 @@ class NeuralSymbolicReasoningBridge:
     def __init__(self, orchestrator: 'DataOrchestrator'):
         self.orchestrator = orchestrator
 
-    def audit_response(self, query: str, ai_response: str) -> bool:
+    async def audit_response(self, query: str, ai_response: str) -> bool:
+        """Performs an asynchronous symbolic audit on the AI response."""
         # Deterministic Fact-Checking
         # Example: If the query is about registration, ensure registration facts are present
         data_text = self.orchestrator.get_context(query).lower()
         ai_text = ai_response.lower()
         
         # Simple symbolic verification: No contradictions allowed
-        # (In production, this would use a formal logic prover)
         if "not eligible" in data_text and "you are eligible" in ai_text:
             telemetry.dispatch("SYMBOLIC_CONTRADCTION_DETECTED", {"query": query[:20]})
             return False
@@ -1073,7 +1073,7 @@ class AdaptiveNeuralSynthesizer:
                 return neural_output
 
         # Verification
-        is_valid = await self.bridge.verify_response(neural_output, substrate)
+        is_valid = await self.bridge.audit_response(neural_output.get("query", ""), response_text)
         if not is_valid:
             telemetry.dispatch("SYNTHESIS_REWEIGHT_ACTIVE", {"status": "HALLUCINATION_DETECTED"})
             neural_output["response"] = "Verification Alert: " + neural_output["response"]
@@ -1355,11 +1355,18 @@ class OmniLayeredLogicEngine:
             if radiance_monitor:
                 radiance_monitor.heartbeat()
             
+            # Cryptographic Integrity Sealing: Sovereign Guardian Protocol
+            integrity_seal = self.security.generate_integrity_seal(result) if hasattr(self.security, 'generate_integrity_seal') else "UNSIGNED"
+            # If using QuantumResiliencePhalanx instance
+            if 'core_engine' in globals():
+                integrity_seal = globals()['core_engine'].quantum.generate_integrity_seal(result)
+            
             return {
                 "status": "success",
                 "session_id": session_id,
                 "response": result,
                 "phase": meta.get("phase", "registration"),
+                "integrity_seal": integrity_seal,
                 "metadata": meta,
                 "telemetry": {
                     "latency_ms": int(duration * 1000),
@@ -1893,12 +1900,8 @@ async def cognitive_pulse(input_data: UserInput, request: Request):
             telemetry.dispatch("QUANTUM_ANOMALY_NEUTRALIZED", {"query_fragment": query[:16]})
             raise SecurityInterceptionError("Quantum-associated anomaly detected in query substrate.")
 
-        # Hierarchical Try-Catch-Finally Matrix
+        # Hierarchical Try-Catch-Matrix Execution
         result = await core_engine.process_query(query, session_id, state, loop)
-        
-        # Cryptographic Integrity Sealing
-        integrity_seal = core_engine.quantum.generate_integrity_seal(result["response"])
-        result["integrity_seal"] = integrity_seal
         
         state.current_phase = result.get("phase", state.current_phase)
         state.history.append({"user": query, "ai": result["response"]})
