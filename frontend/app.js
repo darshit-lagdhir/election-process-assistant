@@ -48,7 +48,7 @@ class OcularAperture {
      */
     async hydrateSubstrate() {
         try {
-            const response = await fetch('/data');
+            const response = await fetch('http://127.0.0.1:8080/data');
             const { data, checksum } = await response.json();
             this.renderTimeline(data.phases);
             Store.update({ isHydrated: true, checksum });
@@ -94,7 +94,7 @@ class OcularAperture {
         // Resilience and retry logic
         const transmit = async (retries = 3) => {
             try {
-                const response = await fetch('/query', {
+                const response = await fetch('http://127.0.0.1:8080/query', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 

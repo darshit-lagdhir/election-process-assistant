@@ -1,41 +1,51 @@
-# --- MULTI-STAGE DOCKER BUILD ---
+# ELECTION PROCESS ASSISTANT: PRODUCTION DOCKERFILE
+# ===============================================
+# SECTOR ETA: THE PHYSICS OF CONTAINERIZED PURITY
+# "A sovereign deployment is a clean deployment."
 
-# Stage 1: Build Stage
-FROM python:3.11-slim as builder
+# --- STAGE 1: THE BUILD KERNEL ---
+# We use a slim Debian base to compile dependencies and prepare the environment.
+FROM python:3.12-slim-bookworm AS builder
+
+# Prevent Python from writing .pyc files and enable unbuffered logging
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# Security: Install only essential build dependencies
+# Install system-level build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-COPY backend/requirements.txt .
-RUN pip install --user --no-cache-dir -r requirements.txt
+# Install Python dependencies into a temporary location
+COPY requirements.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
-# Stage 2: Production Image
-FROM python:3.11-slim
+
+# --- STAGE 2: THE PRODUCTION RADIANCE ---
+# The final image is stripped of build tools, ensuring minimum attack surface.
+FROM python:3.12-slim-bookworm
 
 WORKDIR /app
 
-# Security: Non-root execution context
-RUN groupadd -r civi && useradd -r -g civi civi
-USER civi
+# Copy only the installed packages from the builder stage
+COPY --from=builder /install /usr/local
 
-# Copy installed packages from builder
-COPY --from=builder /root/.local /home/civi/.local
-ENV PATH=/home/civi/.local/bin:$PATH
+# Copy the application source code
+COPY . .
 
-# Copy Assets
-COPY backend/ ./backend/
-COPY data/ ./data/
-COPY frontend/ ./frontend/
+# Set Systemic Environment Variables
+ENV METABOLIC_PERIMETER_MB=10.0
+ENV PORT=8080
+ENV LOG_LEVEL=INFO
 
-# Environment Configuration
-ENV GOOGLE_API_KEY=""
-ENV PORT=8000
+# Ensure data directory exists for forensic logs
+RUN mkdir -p data
 
-# Network Configuration
-EXPOSE 8000
+# Expose the API Ingress Port
+EXPOSE 8080
 
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
+# The Final Ignition: Execute the Hadron Core via Uvicorn
+# We use 4 workers to maximize the multi-threaded potential of the cloud substrate.
+CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "4", "--log-level", "info"]
