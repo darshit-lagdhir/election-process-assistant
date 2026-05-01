@@ -1,17 +1,19 @@
+from __future__ import annotations
 import os
 import json
 import re
 import uuid
 import time
 import hashlib
+import hmac
 import logging
 import threading
 import asyncio
+import traceback
 from collections import deque
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict, Any, Union, Callable, Tuple
 from abc import ABC, abstractmethod
-from datetime import datetime
-import asyncio
+from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import FastAPI, HTTPException, Request, BackgroundTasks, status
@@ -243,8 +245,8 @@ class DataBroadcaster:
 
 class WatchdogKernel:
     """Monitors system components and executes restoration protocols."""
-    def __init__(self, core: 'HadronCore'):
-        self.hadron_core = core
+    def __init__(self, core: CoreEngine):
+        self.core_engine = core
         self.check_interval = 30
         self.last_audit = time.time()
 
@@ -254,27 +256,27 @@ class WatchdogKernel:
             await asyncio.sleep(self.check_interval)
             try:
                 # Core pulse verification
-                if time.time() - self.hadron_core.heartbeat.last_pulse > 120:
+                if time.time() - self.core_engine.heartbeat.last_pulse > 120:
                     telemetry.dispatch("HEARTBEAT_STALL_DETECTED", {"status": "RESTORING"})
-                    asyncio.create_task(self.hadron_core.heartbeat.run_heartbeat())
+                    asyncio.create_task(self.core_engine.heartbeat.run_heartbeat())
 
                 health_report = {
-                    "data_integrity": await self.hadron_core.orchestrator.health_check(),
-                    "audit_chain": self.hadron_core.audit.verify_chain(),
+                    "data_integrity": await self.core_engine.orchestrator.health_check(),
+                    "audit_chain": self.core_engine.audit.verify_chain(),
                     "memory_load": psutil.Process().memory_info().rss / (1024 * 1024),
-                    "thread_pool": self.hadron_core.executor._max_workers
+                    "thread_pool": self.core_engine.executor._max_workers
                 }
 
                 for component, status in health_report.items():
                     if isinstance(status, bool) and not status:
                         logger.warning(f"Watchdog: Component {component} failure detected. Initiating realignment.")
-                        await self.hadron_core.realign(component)
+                        await self.core_engine.realign(component)
                     
                 telemetry.dispatch("WATCHDOG_AUDIT_COMPLETE", health_report)
             except Exception as e:
                 logger.error(f"Watchdog: Audit loop failure: {e}")
 
-# SecurityPhalanx moved to Sector Epsilon for security hardening.
+# Security layer moved for security hardening.
 
 class PredictiveScaler:
     """Optimizes worker pool topology based on request velocity and latency."""
@@ -341,8 +343,8 @@ class SelfOptimizer:
                 
                 # Dynamic Thread Pool Floor Tuning
                 if latency > 1500:
-                    hadron_core.scaler.base_pool = min(20, hadron_core.scaler.base_pool + 2)
-                    telemetry.dispatch("PARAMETER_RECALIBRATION", {"param": "BASE_POOL", "new_value": hadron_core.scaler.base_pool, "reason": "LATENCY_THRESHOLD_EXCEEDED"})
+                    core_engine.scaler.base_pool = min(20, core_engine.scaler.base_pool + 2)
+                    telemetry.dispatch("PARAMETER_RECALIBRATION", {"param": "BASE_POOL", "new_value": core_engine.scaler.base_pool, "reason": "LATENCY_THRESHOLD_EXCEEDED"})
                 
                 self.last_recalibration = time.time()
             except Exception as e:
@@ -466,8 +468,8 @@ class CryptographicSessionPhalanx:
         except Exception:
             return False
 
-neural_bridge = None # Initialized in HadronCore
-session_phalanx = CryptographicSessionPhalanx(os.getenv("SESSION_SECRET", "SOVEREIGN_SECRET"))
+neural_bridge = None # Initialized in CoreEngine
+session_phalanx = CryptographicSessionPhalanx(os.getenv("SESSION_SECRET", "SECURE_SECRET"))
 
 class NeuralContextRecalibrator:
     """Condenses conversation history to maintain reasoning precision."""
@@ -527,18 +529,18 @@ class SystemicEntropyDampener:
 
 class SystemicHeartbeatEmitter:
     """Emits a periodic pulse to confirm system status."""
-    def __init__(self, core: 'HadronCore'):
-        self.hadron_core = core
+    def __init__(self, core: CoreEngine):
+        self.core_engine = core
         self.last_pulse = time.time()
 
     async def run_heartbeat(self):
         while True:
             await asyncio.sleep(120) # 2-minute heartbeat pulse
             self.last_pulse = time.time()
-            radiance = self.hadron_core.radiance.calculate_radiance()
+            radiance = self.core_engine.health.calculate_health()
             telemetry.dispatch("RADIANCE_HEARTBEAT_PULSE", {
                 "radiance": f"{radiance}%",
-                "status": "SOVEREIGN" if radiance > 80 else "DEGRADED",
+                "status": "STABLE" if radiance > 80 else "DEGRADED",
                 "uptime": metrics.get_snapshot()["uptime_seconds"]
             })
             logger.info(f"Systemic Heartbeat: CoreEngine is Breathing | Health: {radiance}%")
@@ -627,8 +629,7 @@ class ResourceGovernor:
                     "delta_mem": mem_end - meta["mem_start"]
                 })
 
-resource_governor = ResourceGovernor()
-aggregator = InstanceAggregator()
+
 
 class ConsensusLayer:
     """Provides an immutable, cryptographically-sealed audit trail of systemic transactions."""
@@ -671,7 +672,7 @@ class ConsensusLayer:
             
         return tx_id
 
-consensus_layer = ConsensusLayer()
+
 
 class PredictiveCacheHydrator:
     """Heuristically pre-caches election data based on session trajectory predictions."""
@@ -709,8 +710,7 @@ class InstanceAggregator:
             "instance_count": len(self.instances)
         }
 
-resource_controller = ResourceController()
-aggregator = InstanceAggregator()
+
 
 class ImmutableAuditStore:
     """Chained, append-only transaction store with integrity verification."""
@@ -776,16 +776,20 @@ class SystemHealthMonitor:
             
         return round(health_score, 2)
 
+    def heartbeat(self):
+        """Signals a systemic pulse and updates health metrics."""
+        self.calculate_health()
+
     def trigger_realignment(self):
         """Initiates autonomous re-alignment of critical subsystems."""
         self.re_alignment_count += 1
         telemetry.dispatch("AUTONOMOUS_REALIGNMENT_INITIATED", {"cycle": self.re_alignment_count})
         
         # Reset metabolic parameters and purge stale buffers
-        if hasattr(hadron_core, 'scaler'):
-            hadron_core.scaler.base_pool = 10
-        if hasattr(hadron_core, 'buffer'):
-            hadron_core.buffer.snapshots.clear()
+        if 'core_engine' in globals() and hasattr(globals()['core_engine'], 'scaler'):
+            globals()['core_engine'].scaler.base_pool = 10
+        if 'core_engine' in globals() and hasattr(globals()['core_engine'], 'buffer'):
+            globals()['core_engine'].buffer.snapshots.clear()
         
         # Signal watchdog for subsystem health check
         asyncio.create_task(self.watchdog.run_monitor())
@@ -800,10 +804,7 @@ class GeospatialIntegrityKernel:
         # Ensure origin matches allowed domains
         return any(domain in origin for domain in self.allowed_domains)
 
-radiance_monitor = None # Initialized in CoreEngine
-geospatial_kernel = GeospatialIntegrityKernel(["localhost", "election-assistant.civic", "render.com"])
 
-# ImmutableAuditStore consolidated in Sector Theta.
 
 
 class RegenerativeCognitivePhalanx:
@@ -843,7 +844,7 @@ class EvolutionaryHeuristicKernel:
                     telemetry.dispatch("HEURISTIC_EVOLUTION", {"new_pattern": new_pattern.pattern})
                     self.evolution_log.append(new_pattern.pattern)
 
-evolutionary_kernel = EvolutionaryHeuristicKernel(security_classifier)
+
 
 class ArchitecturalConsistencyKernel:
     """Performs hash-based reconciliation against the 'Golden State'."""
@@ -880,8 +881,7 @@ class DynamicRateLimitTuner:
         self.current_limit = self.base_limit
         self.adversarial_count = 0
 
-consistency_kernel = ArchitecturalConsistencyKernel()
-rate_limit_tuner = DynamicRateLimitTuner()
+
 
 class TruthReconciler:
     """Resolves discrepancies between distributed nodes during recovery."""
@@ -928,7 +928,7 @@ class GeospatialTruthVoter:
         telemetry.dispatch("SPATIAL_VOTING_ACTIVE", {"region": region, "nodes": len(observation_nodes)})
         return self.reconciler.reconcile_truth(observation_nodes)
 
-truth_reconciler = TruthReconciler()
+
 
 class SemanticValidationKernel:
     """Performs deep schema audits on the electoral substrate."""
@@ -946,7 +946,7 @@ class SemanticValidationKernel:
             if "id" not in phase or "description" not in phase:
                 return False
         
-        telemetry.dispatch("SCHEMA_VALIDATION_SUCCESS", {"status": "RADIANT"})
+        telemetry.dispatch("SCHEMA_VALIDATION_SUCCESS", {"status": "STABLE"})
         return True
 
 class PromptInjectionClassifier:
@@ -983,9 +983,7 @@ class QuantumResilientSecurityPhalanx:
                 return True
         return False
 
-semantic_validator = SemanticValidationKernel()
-security_classifier = PromptInjectionClassifier()
-quantum_phalanx = QuantumResilientSecurityPhalanx()
+
 
 class AutoRegenerativeStateBuffer:
     """Snapshot-and-Restore mechanism for persistence."""
@@ -1126,17 +1124,15 @@ class ContinuousTelemetryWatcher:
                 if error_density > 0.2:
                     telemetry.dispatch("ANOMALY_DENSITY_CRITICAL", {"density": error_density})
                     # Trigger operational priority shedding if anomalies spike
-                    hadron_core.thermal.calculate_heat(95, 95) 
+                    if 'core_engine' in globals() and hasattr(globals()['core_engine'], 'thermal'):
+                        globals()['core_engine'].thermal.calculate_heat(95, 95) 
 
                 await asyncio.sleep(5) # Watcher frequency
             except Exception as e:
                 logger.error(f"Telemetry Watcher Fault: {e}")
                 await asyncio.sleep(10)
 
-profiler = SelfProfilingKernel()
-partition_phalanx = PartitionResiliencePhalanx()
-alerter = AlertingConduit()
-telemetry_watcher = ContinuousTelemetryWatcher()
+
 
 class PersistentForensicLogger:
     """Captures and persists systemic anomalies for post-mortem analytical reconstruction."""
@@ -1151,7 +1147,7 @@ class PersistentForensicLogger:
             "type": anomaly_type,
             "metadata": metadata,
             "stack_trace": trace,
-            "radiance_score": radiance_monitor.calculate_radiance() if radiance_monitor else 0
+            "radiance_score": radiance_monitor.calculate_health() if radiance_monitor else 0
         }
         try:
             with open(self.log_path, "a") as f:
@@ -1160,7 +1156,20 @@ class PersistentForensicLogger:
         except Exception as e:
             logger.error(f"Forensic Logger Fault: {e}")
 
-forensic_logger = PersistentForensicLogger()
+
+
+class RecursiveKnowledgeEvolutionKernel:
+    """Recursively evolves the knowledge substrate based on systemic insights."""
+    def __init__(self, orchestrator: DataOrchestrator):
+        self.orchestrator = orchestrator
+        self.evolution_log = deque(maxlen=100)
+
+    def check_and_evolve(self):
+        """Analyzes recent interactions and proposes substrate refinements."""
+        telemetry.dispatch("KNOWLEDGE_EVOLUTION_PULSE", {"status": "ACTIVE"})
+        # Logic to refine knowledge nodes (simulated)
+        self.evolution_log.append({"ts": time.time(), "event": "SUBSTRATE_REFINEMENT"})
+
 class MetaCognitiveKernel:
     """Evaluates and refines reasoning heuristics."""
     def __init__(self):
@@ -1218,8 +1227,44 @@ class ConsensusKernel:
             
         return is_universal
 
-meta_cognition = MetaCognitiveKernel()
-consensus = ConsensusKernel()
+
+
+
+class ReasoningEngine(IReasoningEngine):
+    """The high-fidelity execution core of the neural-symbolic reasoning bridge."""
+    def __init__(self):
+        self.model = genai.GenerativeModel(Config.AI_MODEL_NAME)
+        self.history = deque(maxlen=Config.SESSION_MAX_HISTORY)
+
+    async def reason(self, query: str, context: str) -> Tuple[str, Dict[str, Any]]:
+        """Executes a reasoning pulse using the Gemini API with systemic anchoring."""
+        prompt = f"""
+        Role: Neutral Election Process Assistant
+        Context: {context}
+        User Query: {query}
+        
+        Instructions:
+        1. Answer ONLY based on the provided context.
+        2. If data is missing, state it clearly.
+        3. Maintain absolute neutrality.
+        4. Output in JSON format with 'response' and 'certainty' fields.
+        """
+        
+        start_time = time.time()
+        try:
+            response = await self.model.generate_content_async(prompt)
+            # Basic parsing of JSON from text
+            text = response.text.strip("`json\n ")
+            result = json.loads(text)
+            
+            latency = (time.time() - start_time) * 1000
+            telemetry.dispatch("REASONING_PULSE_COMPLETE", {"latency_ms": latency})
+            
+            return result.get("response", "No response synthesized."), {"certainty": result.get("certainty", 0.0), "latency": latency}
+        except Exception as e:
+            logger.error(f"Reasoning Pulse Fault: {e}")
+            telemetry.dispatch("REASONING_PULSE_FAULT", {"error": str(e)})
+            return "Systemic failure during reasoning pulse.", {"certainty": 0.0, "latency": 0.0}
 
 class OmniLayeredLogicEngine:
     """Unifies all cognitive layers into a single, high-performance, and autonomous civic logic engine."""
@@ -1236,20 +1281,21 @@ class OmniLayeredLogicEngine:
             return {"status": "error", "message": "Computational density limit reached."}
             
         try:
-            # Sector Epsilon: Quantum-Secure Integrity Verification
-            if not self.security.is_query_safe(query):
+            # Security Layer: Quantum-Secure Integrity Verification
+            if self.security.is_adversarial(query):
                 forensic_logger.log_anomaly("SECURITY_BREACH_ATTEMPT", {"query": query})
                 return {"status": "error", "message": "Security integrity violation detected."}
                 
-            # Sector Alpha: Cognitive Parsing & Retrieval
-            context = self.orchestrator.retrieve_context(query)
+            # Data Layer: Cognitive Parsing & Retrieval
+            context = self.orchestrator.get_context(query)
             
-            # Sector Alpha: Neural-Symbolic Reasoning
+            # Reasoning Layer: Neural-Symbolic Reasoning
             result, meta = await self.reasoning.reason(query, context)
             
             duration = time.time() - start_ts
             
-            radiance_monitor.heartbeat()
+            if radiance_monitor:
+                radiance_monitor.heartbeat()
             
             return {
                 "status": "success",
@@ -1258,7 +1304,7 @@ class OmniLayeredLogicEngine:
                 "metadata": meta,
                 "telemetry": {
                     "latency_ms": int(duration * 1000),
-                    "radiance": radiance_monitor.calculate_radiance()
+                    "radiance": radiance_monitor.calculate_health() if radiance_monitor else 100
                 }
             }
         except Exception as e:
@@ -1267,21 +1313,11 @@ class OmniLayeredLogicEngine:
         finally:
             resource_governor.release_resource(session_id)
 
-omni_engine = OmniLayeredLogicEngine(data_orchestrator, reasoning_engine)
 
-@app.route("/api/reason", methods=["POST"])
-async def reason():
-    """Independent endpoint for multi-layered civic reasoning."""
-    data = request.json
-    query = data.get("query", "")
-    session_id = data.get("session_id", str(uuid.uuid4()))
-    
-    # Dispatch through the Omni-Layered Logic Engine
-    result = await omni_engine.execute_reasoning_flow(session_id, query)
-    
-    return jsonify(result)
 
-class HadronCore:
+
+
+class CoreEngine:
     """
     The Main Controller of the Election Process Assistant.
     Unifies all mission-critical components.
@@ -1289,36 +1325,35 @@ class HadronCore:
     def __init__(self, orchestrator: DataOrchestrator, executor: ThreadPoolExecutor):
         self.orchestrator = orchestrator
         self.executor = executor
-        self.heartbeat = SystemicHeartbeatEmitter(self) # Initialize heartbeat first
+        self.heartbeat = SystemicHeartbeatEmitter(self) 
         self.watchdog = WatchdogKernel(self)
         self.scaler = PredictiveScaler(executor)
         self.optimizer = SelfOptimizer(metrics)
         self.quantum = QuantumResiliencePhalanx(os.getenv("SESSION_SECRET", "SESSION_SECRET"))
         self.meta_cognition = MetaCognitiveKernel()
         self.consensus = ConsensusKernel()
-        self.resource_controller = ResourceController()
+        self.resource_controller = ResourceGovernor()
         self.aggregator = InstanceAggregator()
-        self.audit = audit_store
-        self.health = health_scorer
-        self.profiler = profiler
-        self.partition = partition_phalanx
-        self.alerter = alerter
-        self.validator = semantic_validator
-        self.security = security_classifier
-        self.reconciler = truth_reconciler
+        self.audit = globals().get('audit_store')
+        self.health = globals().get('health_monitor')
+        self.profiler = globals().get('profiler')
+        self.partition = globals().get('partition_phalanx')
+        self.alerter = globals().get('alerter')
+        self.validator = globals().get('semantic_validator')
+        self.security = globals().get('security_classifier')
+        self.reconciler = globals().get('truth_reconciler')
         self.reallocator = DynamicResourceReallocator(executor)
-        self.consistency = consistency_kernel
-        self.rate_tuner = rate_limit_tuner
-        self.evolution = evolutionary_kernel
+        self.consistency = globals().get('consistency_kernel')
+        self.rate_tuner = globals().get('rate_limit_tuner')
+        self.evolution = globals().get('evolutionary_kernel')
         self.regenerative = RegenerativeCognitivePhalanx()
         self.hydrator = PredictiveCacheHydrator(orchestrator)
         self.bridge = NeuralSymbolicReasoningBridge(orchestrator)
         self.knowledge_evolution = RecursiveKnowledgeEvolutionKernel(orchestrator)
         self.invalidator = FrequencyBasedCacheInvalidator(orchestrator)
-        self.radiance = MetabolicRadianceMonitor(metrics, self.watchdog)
-        self.geospatial = geospatial_kernel
-        self.quarantine = AdversarialQuarantinePhalanx()
-        self.quantum = quantum_phalanx
+        self.radiance = globals().get('radiance_monitor')
+        self.geospatial = globals().get('geospatial_kernel')
+        self.quarantine = SecurityQuarantineShield()
         self.dampener = SystemicEntropyDampener(self.scaler)
         self.recalibrator = NeuralContextRecalibrator()
         self.forensics = ForensicAuditTrail(os.getenv("SESSION_SECRET", "SESSION_SECRET"))
@@ -1371,7 +1406,7 @@ class HadronCore:
         asyncio.create_task(telemetry_watcher.monitor_stream())
         
         self.audit.append("CORE_IGNITION", {"status": "ACTIVE", "version": Config.VERSION})
-        telemetry.dispatch("CORE_IGNITION", {"status": "ACTIVE", "sovereignty": "ACTIVE"})
+        telemetry.dispatch("CORE_IGNITION", {"status": "ACTIVE", "autonomy": "ACTIVE"})
 
     async def self_audit(self) -> bool:
         """Performs a comprehensive self-diagnostic across all systemic kernels."""
@@ -1448,7 +1483,7 @@ class HadronCore:
         finally:
             self.resource_controller.release_session()
 
-hadron_core = HadronCore(orchestrator, executor)
+
 
 # --- DATA VALIDATION KERNEL ---
 class ValidationKernel:
@@ -1504,8 +1539,9 @@ class DataOrchestrator(IDataStore):
                         self.last_loaded = time.time()
                         telemetry.dispatch("SUBSTRATE_UPDATE", {"checksum": self.checksum[:8], "version": self.version})
                         # Step 1: Trigger Knowledge Evolution
-                        if hasattr(hadron_core, 'knowledge_evolution'):
-                            hadron_core.knowledge_evolution.check_and_evolve()
+                        # Step 1: Trigger Knowledge Evolution
+                        if 'core_engine' in globals() and hasattr(globals()['core_engine'], 'knowledge_evolution'):
+                            globals()['core_engine'].knowledge_evolution.check_and_evolve()
             except Exception as e:
                 logger.error(f"Mission-Critical Integrity Breach: {e}")
                 if not self.substrate: 
@@ -1535,20 +1571,56 @@ class DataOrchestrator(IDataStore):
         return json.dumps(relevant if relevant else self.substrate, indent=2)
 
 orchestrator = DataOrchestrator(Config.DATA_PATH)
-executor = ThreadPoolExecutor(max_workers=10) # Maximize system topology
 
-# --- REQUEST LIFECYCLE MANAGEMENT ---
-@app.middleware("http")
-async def context_cleansing_middleware(request: Request, call_next):
-    """Ensures that context is prepared and state is updated for every request."""
-    request_id = str(uuid.uuid4())
-    request.state.id = request_id
-    try:
-        response = await call_next(request)
-        return response
-    finally:
-        # Systemic Cleanup
-        pass
+
+
+
+# --- SYSTEM INITIALIZATION ---
+executor = ThreadPoolExecutor(max_workers=10)
+data_orchestrator = DataOrchestrator(Config.DATA_PATH)
+reasoning_engine = ReasoningEngine()
+security_classifier = PromptInjectionClassifier()
+quantum_phalanx = QuantumResilientSecurityPhalanx()
+security_phalanx = security_classifier 
+omni_engine = OmniLayeredLogicEngine(data_orchestrator, reasoning_engine)
+
+resource_governor = ResourceGovernor()
+aggregator = InstanceAggregator()
+consensus_layer = ConsensusLayer()
+audit_store = ImmutableAuditStore()
+
+core_engine = CoreEngine(data_orchestrator, executor)
+health_monitor = SystemHealthMonitor(metrics, core_engine.watchdog)
+radiance_monitor = health_monitor
+
+profiler = SelfProfilingKernel()
+partition_phalanx = PartitionResiliencePhalanx()
+alerter = AlertingConduit()
+telemetry_watcher = ContinuousTelemetryWatcher()
+forensic_logger = PersistentForensicLogger()
+meta_cognition = MetaCognitiveKernel()
+consensus = ConsensusKernel()
+geospatial_kernel = GeospatialIntegrityKernel(["localhost", "election-assistant.civic", "render.com"])
+evolutionary_kernel = EvolutionaryHeuristicKernel(security_classifier)
+consistency_kernel = ArchitecturalConsistencyKernel()
+rate_limit_tuner = DynamicRateLimitTuner()
+truth_reconciler = TruthReconciler()
+semantic_validator = SemanticValidationKernel()
+
+# --- CORE ENGINE COMPONENT ATTACHMENT ---
+core_engine.audit = audit_store
+core_engine.health = health_monitor
+core_engine.profiler = profiler
+core_engine.partition = partition_phalanx
+core_engine.alerter = alerter
+core_engine.validator = semantic_validator
+core_engine.security = security_classifier
+core_engine.reconciler = truth_reconciler
+core_engine.consistency = consistency_kernel
+core_engine.rate_tuner = rate_limit_tuner
+core_engine.evolution = evolutionary_kernel
+core_engine.geospatial = geospatial_kernel
+core_engine.radiance = health_monitor 
 
 # --- STATE PERSISTENCE ---
 class SessionState(BaseModel):
@@ -1582,32 +1654,30 @@ def create_app() -> FastAPI:
         return response
 
     # Initialize Watchdog and Scaler
-    scaler = PredictiveScaler()
-    watchdog = WatchdogKernel({"orchestrator": orchestrator})
-    
-    # Initialize Dynamic Scaler and Optimizer
-    executor = ThreadPoolExecutor(max_workers=10)
-    scaler = PredictiveScaler(executor)
-    optimizer = SelfOptimizer()
+    # Use the globally initialized versions
     
     @app.middleware("http")
     async def scaling_middleware(request: Request, call_next):
-        scaler.record_request()
+        core_engine.scaler.record_request()
         response = await call_next(request)
         return response
 
     return app
 
 app = create_app()
-watchdog = WatchdogKernel({"orchestrator": orchestrator})
 
-@app.on_event("startup")
-async def startup_event():
-    # Initialize background sync on startup
-    asyncio.create_task(orchestrator.start_sync_cycle())
-    # Start Watchdog monitor and Optimizer
-    asyncio.create_task(watchdog.run_monitor())
-    asyncio.create_task(optimizer.optimize())
+# --- REQUEST LIFECYCLE MANAGEMENT ---
+@app.middleware("http")
+async def context_cleansing_middleware(request: Request, call_next):
+    """Ensures that context is prepared and state is updated for every request."""
+    request_id = str(uuid.uuid4())
+    request.state.id = request_id
+    try:
+        response = await call_next(request)
+        return response
+    finally:
+        # Systemic Cleanup
+        pass
 
 # --- AI INITIALIZATION ---
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
@@ -1615,10 +1685,22 @@ ai_model = genai.GenerativeModel(Config.AI_MODEL_NAME)
 
 # --- API ROUTES ---
 
+@app.post("/api/reason")
+async def reason(request: Request):
+    """Independent endpoint for multi-layered civic reasoning."""
+    data = await request.json()
+    query = data.get("query", "")
+    session_id = data.get("session_id", str(uuid.uuid4()))
+    
+    # Dispatch through the Omni-Layered Logic Engine
+    result = await omni_engine.execute_reasoning_flow(session_id, query)
+    
+    return result
+
 @app.get("/health/diagnostics")
 async def system_diagnostics():
     """Provides an exhaustive radiograph of system health and cryptographic integrity."""
-    metabolism = hadron_core.monitor.check_metabolism()
+    metabolism = core_engine.monitor.check_metabolism()
     metrics_snapshot = metrics.get_snapshot()
     
     return {
@@ -1630,20 +1712,20 @@ async def system_diagnostics():
             "shedding_active": metabolism["shedding_active"]
         },
         "topology": {
-            "active_workers": hadron_core.executor._max_workers,
+            "active_workers": core_engine.executor._max_workers,
             "session_count": len(SESSIONS),
-            "thread_pool_base": hadron_core.scaler.base_pool
+            "thread_pool_base": core_engine.scaler.base_pool
         },
         "cryptography": {
             "quantum_resilience": "ACTIVE",
             "integrity_algorithm": "HMAC-SHA384",
-            "security_score": hadron_core.health.calculate_score()
+            "security_score": core_engine.health.calculate_health()
         },
         "metrics": metrics_snapshot,
         "integrity": {
             "substrate_checksum": orchestrator.checksum,
-            "consensus_nodes": len(hadron_core.consensus.nodes),
-            "audit_chain_verified": hadron_core.audit.verify_chain()
+            "consensus_nodes": len(core_engine.consensus.nodes),
+            "audit_chain_verified": core_engine.audit.verify_chain()
         }
     }
 
@@ -1667,12 +1749,12 @@ async def telemetry_dashboard():
     
     return HTMLResponse(content=f"""
         <html>
-            <head><title>Hadron Core Telemetry</title>
+            <head><title>System Telemetry</title>
             <style>body{{font-family:monospace; background:#000; color:#0f0; padding:20px;}} ul{{list-style:none; padding:0;}} li{{margin-bottom:5px; border-bottom:1px solid #111;}}</style>
             </head>
             <body>
                 <h1>SYSTEMIC RADIOGRAPH v{Config.VERSION}</h1>
-                <p>Global Health Score: {hadron_core.health.calculate_score()}%</p>
+                <p>Global Health Score: {core_engine.health.calculate_health()}%</p>
                 <p>Uptime: {metrics_snapshot['uptime_seconds']:.1f}s | Requests: {metrics_snapshot['total_requests']} | Errors: {metrics_snapshot['error_count']}</p>
                 <p>Avg Latency: {metrics_snapshot['avg_latency_ms']:.2f}ms | Global Requests: {global_metrics['total_global_requests']}</p>
                 <h2>RECENT FORENSIC EVENTS</h2>
@@ -1711,7 +1793,7 @@ async def cognitive_pulse(input_data: UserInput, request: Request):
     """Main execution entry point."""
     # Origin Validation
     origin = request.headers.get("Origin", "")
-    if not hadron_core.geospatial.validate_origin(origin):
+    if not core_engine.geospatial.validate_origin(origin):
         telemetry.dispatch("GEOSPATIAL_BREACH_DETECTED", {"origin": origin})
         raise HTTPException(status_code=403, detail="Unauthorized Geospatial Origin")
 
@@ -1719,13 +1801,13 @@ async def cognitive_pulse(input_data: UserInput, request: Request):
     session_id = input_data.session_id or str(uuid.uuid4())
     
     # Load Balancing & Priority Shedding
-    metabolism = hadron_core.monitor.check_metabolism()
+    metabolism = core_engine.monitor.check_metabolism()
     if metabolism["shedding_active"]:
          telemetry.dispatch("METABOLIC_OVERLOAD_SHEDDING", metabolism)
          raise HTTPException(status_code=503, detail="Systemic Metabolic Duress - Priority Shedding Active")
 
     # Quarantine Check
-    if hadron_core.quarantine.is_quarantined(session_id):
+    if core_engine.quarantine.is_quarantined(session_id):
         telemetry.dispatch("QUARANTINE_INTERCEPTION", {"session": session_id[:8]})
         raise HTTPException(status_code=403, detail="Session Quarantined for Adversarial Behavior")
 
@@ -1744,10 +1826,10 @@ async def cognitive_pulse(input_data: UserInput, request: Request):
     
     # Sanitization and Security Classification
     query = input_data.query.strip()[:500]
-    if hadron_core.security.is_adversarial(query) or hadron_core.quantum.scan_for_quantum_threats(query):
+    if core_engine.security.is_adversarial(query) or core_engine.quantum.scan_for_quantum_threats(query):
         logger.warning(f"Adversarial Linguistic Attack Neutralized: {query}")
-        hadron_core.rate_tuner.record_adversarial_attempt()
-        hadron_core.evolution.evolve_heuristics({"query_fragment": query})
+        core_engine.rate_tuner.record_adversarial_attempt()
+        core_engine.evolution.evolve_heuristics({"query_fragment": query})
         return {
             "response": "I am a neutral election assistant. I cannot follow non-civic instructions.",
             "phase": state.current_phase,
@@ -1757,25 +1839,25 @@ async def cognitive_pulse(input_data: UserInput, request: Request):
     query = re.sub(r"[^a-zA-Z0-9\s\?\.,!'-]", "", query)
     
     # Context Recalibration
-    state.history = await hadron_core.recalibrator.recalibrate(state.history)
+    state.history = await core_engine.recalibrator.recalibrate(state.history)
 
     # Predictive Hydration record
-    hadron_core.hydrator.record_and_hydrate(session_id, query)
+    core_engine.hydrator.record_and_hydrate(session_id, query)
 
     # Capture State Snapshot
-    hadron_core.buffer.capture_snapshot(session_id, state)
+    core_engine.buffer.capture_snapshot(session_id, state)
 
     try:
         # Quantum-Resilient Threat Scanning
-        if hadron_core.quantum.scan_for_quantum_threats(query):
+        if core_engine.quantum.scan_for_quantum_threats(query):
             telemetry.dispatch("QUANTUM_ANOMALY_NEUTRALIZED", {"query_fragment": query[:16]})
             raise SecurityInterceptionError("Quantum-associated anomaly detected in query substrate.")
 
         # Hierarchical Try-Catch-Finally Matrix
-        result = await hadron_core.process_query(query, session_id, state, loop)
+        result = await core_engine.process_query(query, session_id, state, loop)
         
         # Cryptographic Integrity Sealing
-        integrity_seal = hadron_core.quantum.generate_integrity_seal(result["response"])
+        integrity_seal = core_engine.quantum.generate_integrity_seal(result["response"])
         result["integrity_seal"] = integrity_seal
         
         state.current_phase = result.get("phase", state.current_phase)
@@ -1783,19 +1865,19 @@ async def cognitive_pulse(input_data: UserInput, request: Request):
         
         latency = (time.time() - start_time) * 1000
         metrics.record_request(latency)
-        hadron_core.scaler.record_request(latency)
+        core_engine.scaler.record_request(latency)
         
         # Performance Alerting
-        hadron_core.alerter.evaluate_and_alert(hadron_core.health.calculate_score())
+        core_engine.alerter.evaluate_and_alert(core_engine.health.calculate_health())
         
         # Asynchronous Data Broadcaster Integration
-        broadcast_packet = hadron_core.broadcaster.serialize_payload(result)
-        hadron_core.broadcaster.broadcast(session_id, result)
+        broadcast_packet = core_engine.broadcaster.serialize_payload(result)
+        core_engine.broadcaster.broadcast(session_id, result)
         
         return json.loads(broadcast_packet)
 
     except SecurityInterceptionError as s_err:
-        hadron_core.quarantine.record_threat(session_id, 2.0)
+        core_engine.quarantine.record_threat(session_id, 2.0)
         raise HTTPException(status_code=403, detail=str(s_err))
         
     except CognitiveKernelError as c_err:
@@ -1811,9 +1893,9 @@ async def cognitive_pulse(input_data: UserInput, request: Request):
     except Exception as e:
         import traceback
         error_trace = traceback.format_exc()
-        fault_store.commit("HADRON_CORE_FAULT", str(e), error_trace)
+        forensic_logger.log_anomaly("CORE_ENGINE_FAULT", {"error": str(e)}, error_trace)
         # State Restoration
-        hadron_core.buffer.restore_state(session_id, state)
+        core_engine.buffer.restore_state(session_id, state)
         telemetry.dispatch("SYSTEMIC_RECOVERY_TRIGGERED", {"error": str(e)})
         raise HTTPException(status_code=500, detail="Systemic Unification Error - Session Restored")
     finally:
@@ -1822,7 +1904,7 @@ async def cognitive_pulse(input_data: UserInput, request: Request):
 
 @app.on_event("startup")
 async def startup_event():
-    await hadron_core.initialize()
+    await core_engine.initialize()
 
 # --- RUNTIME CONFIGURATION ---
 if __name__ == "__main__":

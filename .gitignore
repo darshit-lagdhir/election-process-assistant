@@ -7,3 +7,8 @@ audit_payload.json
 api_status.json
 api_status_utf8.json
 tests/
+audit_trail.jsonl
+data/forensic_anomalies.jsonl
+forensics.log
+faults.log
+*.jsonl

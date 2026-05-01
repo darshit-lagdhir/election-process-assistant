@@ -90,5 +90,7 @@
         {"id": "res_2", "title": "Final Certification", "desc": "Review the certified results published by the Election Commission."}
       ]
     }
-  ]
+  ],
+  "security_measures": ["HMAC-SHA256 Session Integrity", "Geospatial Origin Validation"],
+  "eligibility_criteria": ["18+ Years Old", "Citizen Status"]
 }
