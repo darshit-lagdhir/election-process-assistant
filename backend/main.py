@@ -83,6 +83,18 @@ class CognitiveKernelError(ElectoralBaseError):
     """Raised when the reasoning engine fails to synthesize a response."""
     pass
 
+class NetworkConduitError(ElectoralBaseError):
+    """Raised when the asynchronous data conduit encounters a transport fault."""
+    pass
+
+class SecurityInterceptionError(ElectoralBaseError):
+    """Raised when a query is blocked by the security phalanx."""
+    pass
+
+class MetabolicSheddingError(ElectoralBaseError):
+    """Raised when the system must shed load to preserve stability."""
+    pass
+
 class PersistentFaultStore:
     """Log system failures to a persistent store for post-mortem analysis."""
     def __init__(self, path: str = "faults.log"):
@@ -152,29 +164,58 @@ class TelemetryDispatcher:
     async def run_multiplexer(self):
         """Asynchronous Event Multiplexing with Backpressure Handling."""
         while self.is_running:
-            # Backpressure Handling
-            queue_size = self.event_queue.qsize()
-            if queue_size > 800:
-                # Emergency Metabolic Scaling: Drain queue faster
-                telemetry.dispatch("BACKPRESSURE_THRESHOLD_BREACHED", {"size": queue_size})
-                batch_size = 10
-            else:
-                batch_size = 1
+            try:
+                # Backpressure Handling
+                queue_size = self.event_queue.qsize()
+                batch_size = 10 if queue_size > 500 else 1
                 
-            for _ in range(batch_size):
-                if self.event_queue.empty():
-                    break
-                event = await self.event_queue.get()
-                for listener in self.listeners:
-                    try:
-                        await listener(event)
-                    except Exception as e:
-                        logger.error(f"Telemetry Multiplexer Error: {e}")
-                self.event_queue.task_done()
-            
-            await asyncio.sleep(0.01) # Metabolic pacing
+                for _ in range(batch_size):
+                    if self.event_queue.empty():
+                        break
+                    event = await self.event_queue.get()
+                    for listener in self.listeners:
+                        try:
+                            # Execute listener in non-blocking manner
+                            if asyncio.iscoroutinefunction(listener):
+                                await listener(event)
+                            else:
+                                listener(event)
+                        except Exception as l_err:
+                            logger.error(f"Listener execution fault: {l_err}")
+                    self.event_queue.task_done()
+                
+                await asyncio.sleep(0.01) # Metabolic pacing
+            except Exception as e:
+                logger.error(f"Multiplexer loop error: {e}")
+                await asyncio.sleep(1)
 
 telemetry = TelemetryDispatcher()
+
+class DataBroadcaster:
+    """Serializes reasoning nodes into lean JSON packets for UI hydration."""
+    def __init__(self):
+        self.broadcast_history = deque(maxlen=100)
+
+    def serialize_payload(self, data: Dict[str, Any]) -> str:
+        """Converts complex structures into lean JSON strings."""
+        try:
+            # Strip unnecessary metadata to maintain metabolic perimeter
+            lean_data = {
+                "response": data.get("response", ""),
+                "phase": data.get("phase", "unknown"),
+                "status": data.get("status", "STABLE"),
+                "ts": time.time()
+            }
+            return json.dumps(lean_data)
+        except Exception as e:
+            logger.error(f"Serialization Fault: {e}")
+            return json.dumps({"error": "SERIALIZATION_FAILURE"})
+
+    def broadcast(self, session_id: str, payload: Dict[str, Any]):
+        """Records broadcast event in system telemetry."""
+        serialized = self.serialize_payload(payload)
+        self.broadcast_history.append({"sid": session_id, "size": len(serialized)})
+        telemetry.dispatch("DATA_HYDRATION_PULSE", {"session": session_id, "bytes": len(serialized)})
 
 class WatchdogKernel:
     """Monitors system components and executes restoration protocols."""
@@ -236,8 +277,10 @@ class PredictiveScaler:
         self.max_pool = 50
         self.latency_buffer = deque(maxlen=50)
         self.request_timestamps = deque(maxlen=200)
+        self.scaling_lock = threading.Lock()
 
     def record_request(self, latency_ms: float = 0):
+        """Records request metrics and triggers topology evaluation."""
         self.request_timestamps.append(time.time())
         if latency_ms > 0:
             self.latency_buffer.append(latency_ms)
@@ -245,22 +288,22 @@ class PredictiveScaler:
 
     def evaluate_topology(self):
         """Calculates target worker count using load heuristics."""
-        now = time.time()
-        # Calculate requests per second over the last minute
-        recent_reqs = [t for t in self.request_timestamps if t > now - 60]
-        rps = len(recent_reqs) / 60.0
-        
-        avg_latency = sum(self.latency_buffer) / len(self.latency_buffer) if self.latency_buffer else 0
-        
-        # Heuristic: Increase workers if RPS > 5 or Latency > 1000ms
-        target = self.base_pool
-        if rps > 5 or avg_latency > 1000:
-            target = min(self.max_pool, int(self.base_pool * (1 + (rps / 2)) + (avg_latency / 500)))
+        with self.scaling_lock:
+            now = time.time()
+            recent_reqs = [t for t in self.request_timestamps if t > now - 60]
+            rps = len(recent_reqs) / 60.0
             
-        if target != self.executor._max_workers:
-            logger.info(f"Scaling: Adjusting thread pool to {target} workers (RPS: {rps:.2f}, Lat: {avg_latency:.1f}ms)")
-            self.executor._max_workers = target
-            telemetry.dispatch("TOPOLOGY_ADJUSTMENT", {"workers": target, "rps": rps})
+            avg_latency = sum(self.latency_buffer) / len(self.latency_buffer) if self.latency_buffer else 0
+            
+            # Heuristic scaling logic
+            target = self.base_pool
+            if rps > 5 or avg_latency > 1000:
+                target = min(self.max_pool, int(self.base_pool * (1 + (rps / 2)) + (avg_latency / 500)))
+                
+            if target != self.executor._max_workers:
+                logger.info(f"Scaling: Adjusting thread pool to {target} workers (RPS: {rps:.2f}, Lat: {avg_latency:.1f}ms)")
+                self.executor._max_workers = target
+                telemetry.dispatch("TOPOLOGY_ADJUSTMENT", {"workers": target, "rps": rps, "avg_latency": avg_latency})
 
 class SelfOptimizer:
     """Adjusts parameters based on system metrics."""
@@ -1015,6 +1058,7 @@ class HadronCore:
         self.thermal = MetabolicThermalMonitor()
         self.buffer = AutoRegenerativeStateBuffer()
         self.monitor = MetabolicResourceMonitor() # Real-time metabolic monitoring
+        self.broadcaster = DataBroadcaster() # Asynchronous UI hydration
         self.is_active = True
 
     async def realign(self, component: str):
@@ -1353,11 +1397,13 @@ async def cognitive_pulse(input_data: UserInput, request: Request):
         telemetry.dispatch("GEOSPATIAL_BREACH_DETECTED", {"origin": origin})
         raise HTTPException(status_code=403, detail="Unauthorized Geospatial Origin")
 
+    start_time = time.time()
+    session_id = input_data.session_id or str(uuid.uuid4())
+    
     # Load Balancing & Priority Shedding
-    cpu_usage = 0.5 # Simulated metric
-    memory_usage = 0.4 # Simulated metric
-    thermal_status = hadron_core.thermal.calculate_heat(cpu_usage, memory_usage)
-    if thermal_status == "SHED":
+    metabolism = hadron_core.monitor.check_metabolism()
+    if metabolism["shedding_active"]:
+         telemetry.dispatch("METABOLIC_OVERLOAD_SHEDDING", metabolism)
          raise HTTPException(status_code=503, detail="Systemic Metabolic Duress - Priority Shedding Active")
 
     # Quarantine Check
@@ -1405,6 +1451,7 @@ async def cognitive_pulse(input_data: UserInput, request: Request):
     hadron_core.buffer.capture_snapshot(session_id, state)
 
     try:
+        # Hierarchical Try-Catch-Finally Matrix
         result = await hadron_core.process_query(query, session_id, state, loop)
         
         state.current_phase = result.get("phase", state.current_phase)
@@ -1412,22 +1459,42 @@ async def cognitive_pulse(input_data: UserInput, request: Request):
         
         latency = (time.time() - start_time) * 1000
         metrics.record_request(latency)
+        hadron_core.scaler.record_request(latency)
         
         # Performance Alerting
         hadron_core.alerter.evaluate_and_alert(hadron_core.health.calculate_score())
         
-        return {
-            "response": result["response"],
+        # Asynchronous Data Broadcaster Integration
+        broadcast_packet = hadron_core.broadcaster.serialize_payload(result)
+        hadron_core.broadcaster.broadcast(session_id, result)
+        
+        return json.loads(broadcast_packet)
+
+    except SecurityInterceptionError as s_err:
+        hadron_core.quarantine.record_threat(session_id, 2.0)
+        raise HTTPException(status_code=403, detail=str(s_err))
+        
+    except CognitiveKernelError as c_err:
+        logger.error(f"Reasoning Kernel Stall: {c_err}")
+        # Graceful Degradation: Fallback to heuristic response
+        fallback_result = {
+            "response": "I am experiencing a reasoning delay. Re-aligning with current phase data...",
             "phase": state.current_phase,
-            "session_id": session_id,
-            "status": "STABLE",
-            "evolution": hadron_core.meta_cognition.retrieval_threshold
+            "status": "DEGRADED"
         }
+        return fallback_result
+
     except Exception as e:
-        fault_store.commit("HADRON_CORE_FAULT", str(e), "")
+        import traceback
+        error_trace = traceback.format_exc()
+        fault_store.commit("HADRON_CORE_FAULT", str(e), error_trace)
         # State Restoration
         hadron_core.buffer.restore_state(session_id, state)
+        telemetry.dispatch("SYSTEMIC_RECOVERY_TRIGGERED", {"error": str(e)})
         raise HTTPException(status_code=500, detail="Systemic Unification Error - Session Restored")
+    finally:
+        # Request Lifecycle Finalization
+        logger.debug(f"Request Lifecycle Finalized for session {session_id}")
 
 @app.on_event("startup")
 async def startup_event():
