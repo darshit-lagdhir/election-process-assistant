@@ -1,0 +1,8 @@
+.env
+node_modules
+__pycache__
+*.pyc
+api_check_v2.json
+audit_payload.json
+api_status.json
+api_status_utf8.json
