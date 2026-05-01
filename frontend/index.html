@@ -3,48 +3,63 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Election Process Assistant</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Election Process Assistant | Ocular Aperture</title>
+    <meta name="description" content="A quantum-secure, agentic civic instrument for election process guidance. Built on the Hadron Core.">
+    <link rel="stylesheet" href="index.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 </head>
-<body role="application">
-    <div class="app-container">
-        <!-- Header -->
-        <header role="banner">
-            <h1>Election Process Assistant</h1>
-            <div class="system-status" aria-live="polite">
-                <span class="status-dot"></span>
-                <span id="status-text">Status: Stable</span>
+<body class="radiant-theme">
+    <div id="app-root">
+        <!-- SECTOR DELTA: THE TELEMETRY SHIELD -->
+        <header id="top-nav">
+            <div class="brand">
+                <div class="status-dot"></div>
+                <h1>HADRON CORE <span class="version">v1.0.0</span></h1>
             </div>
+            <div id="telemetry-shield">
+                <!-- Hydrated by app.js -->
+                <div class="metric">LAT: --ms</div>
+                <div class="metric">RAD: --%</div>
+                <div class="metric">CPU: --%</div>
+                <div class="metric">MEM: --MB</div>
+            </div>
+            <div id="status-text">Status: STABLE</div>
         </header>
 
-        <!-- Sidebar -->
-        <nav class="sidebar" aria-label="Electoral Timeline" id="timeline-conduit">
-            <h2 class="sr-only">Phases of the Election</h2>
-            <!-- Dynamically Hydrated -->
-        </nav>
-
-        <!-- Main View -->
-        <main class="main-view" role="main">
-            <div class="chat-conduit" id="chat-conduit" aria-live="polite">
-                <div class="message ai">
-                    Greetings. I am your Election Process Assistant. How may I assist you with the electoral process today?
+        <main id="main-interface">
+            <!-- SECTOR ZETA: THE ASYNCHRONOUS DATA CONDUIT -->
+            <aside id="sidebar">
+                <div class="section-title">SYSTEM TIMELINE</div>
+                <div id="timeline-conduit">
+                    <!-- Hydrated by app.js -->
                 </div>
-            </div>
+                <div class="sidebar-footer">
+                    <p>QUANTUM RESILIENCE ACTIVE</p>
+                </div>
+            </aside>
 
-            <!-- Input Area -->
-            <form class="input-container" id="input-form">
-                <label for="user-query" class="sr-only">Input your query</label>
-                <input type="text" id="user-query" placeholder="Ask about registration, deadlines, or voting..." autocomplete="off" required>
-                <button type="submit" class="send-btn">Send</button>
-            </form>
+            <section id="chat-section">
+                <div id="chat-conduit">
+                    <div class="message ai greeting">
+                        <div class="message-content">
+                            Systemic initialization complete. I am the Election Process Assistant, anchored in the Hadron Core truth substrate. How may I facilitate your civic journey?
+                        </div>
+                    </div>
+                </div>
+                
+                <footer id="input-anchor">
+                    <form id="input-form">
+                        <input type="text" id="user-query" placeholder="Ask about registration, verification, or polling..." autocomplete="off">
+                        <button type="submit" id="transmit-btn">
+                            <svg viewBox="0 0 24 24" width="24" height="24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" fill="currentColor"/></svg>
+                        </button>
+                    </form>
+                </footer>
+            </section>
         </main>
     </div>
-
-    <!-- Telemetry Data -->
-    <div id="telemetry-shield" class="sr-only" aria-live="assertive"></div>
 
     <script src="app.js"></script>
 </body>

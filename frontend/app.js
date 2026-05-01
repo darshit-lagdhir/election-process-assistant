@@ -1,20 +1,25 @@
 /**
- * Main application controller for the Election Process Assistant.
+ * THE FRONTEND OCULAR APERTURE: ELECTION PROCESS ASSISTANT
+ * THE SINGULARITY SCALE CONVERGENCE (PROMPT 56)
  */
 
 class StateManager {
     constructor() {
         this.state = {
             currentPhase: 'registration',
-            session_id: null,
+            session_id: localStorage.getItem('assistant_sid') || null,
             isHydrated: false,
-            latency: 0
+            latency: 0,
+            radiance: 100,
+            metabolism: { cpu: 0, mem: 0 },
+            history: []
         };
         this.subscribers = [];
     }
 
     update(newState) {
         this.state = { ...this.state, ...newState };
+        if (newState.session_id) localStorage.setItem('assistant_sid', newState.session_id);
         this.subscribers.forEach(sub => sub(this.state));
     }
 
@@ -25,6 +30,32 @@ class StateManager {
 
 const Store = new StateManager();
 
+class ConduitProtocol {
+    /**
+     * Handles secure, high-frequency data transmission between the Frontier and the Hadron Core.
+     */
+    static async transmit(endpoint, payload) {
+        const url = `http://127.0.0.1:8000${endpoint}`;
+        const headers = { 
+            'Content-Type': 'application/json',
+            'X-Session-Token': Store.state.session_token || ''
+        };
+        
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) throw new Error(`PROTOCOL_FAULT_${response.status}`);
+            return await response.json();
+        } catch (err) {
+            console.error("[CONDUIT_FAULT]", err);
+            throw err;
+        }
+    }
+}
+
 class OcularAperture {
     constructor() {
         this.chatConduit = document.getElementById('chat-conduit');
@@ -32,6 +63,7 @@ class OcularAperture {
         this.inputForm = document.getElementById('input-form');
         this.queryInput = document.getElementById('user-query');
         this.statusText = document.getElementById('status-text');
+        this.telemetryShield = document.getElementById('telemetry-shield');
         
         this.init();
     }
@@ -40,41 +72,47 @@ class OcularAperture {
         this.inputForm.addEventListener('submit', (e) => this.handleTransmission(e));
         Store.subscribe((state) => this.render(state));
         
+        // Start background metabolic sync
+        this.beginMetabolicSync();
         await this.hydrateSubstrate();
     }
 
-    /**
-     * Real-time data hydration.
-     */
     async hydrateSubstrate() {
         try {
-            const response = await fetch('http://127.0.0.1:8080/data');
+            const response = await fetch('http://127.0.0.1:8000/data');
             const { data, checksum } = await response.json();
             this.renderTimeline(data.phases);
             Store.update({ isHydrated: true, checksum });
-            this.logTelemetry("SUBSTRATE_SYNC", { checksum });
         } catch (error) {
             this.handleSystemicFault("Hydration Failure", error);
         }
     }
 
-    /**
-     * System metrics and logging.
-     */
-    logTelemetry(event, details) {
-        console.log(`[TELEMETRY] ${event}`, details);
-        const shield = document.getElementById('telemetry-shield');
-        shield.textContent = `Event: ${event} Status: Stable`;
+    async beginMetabolicSync() {
+        setInterval(async () => {
+            try {
+                const response = await fetch('http://127.0.0.1:8000/health/diagnostics');
+                const stats = await response.json();
+                Store.update({ 
+                    radiance: stats.cryptography.security_score,
+                    metabolism: { 
+                        cpu: stats.metabolism.cpu_percent, 
+                        mem: stats.metabolism.memory_mb 
+                    }
+                });
+            } catch (err) {
+                // Background sync failure is non-blocking
+            }
+        }, 5000);
     }
 
     renderTimeline(phases) {
         this.timelineConduit.innerHTML = phases.map(phase => `
             <div class="timeline-node ${Store.state.currentPhase === phase.id ? 'active' : ''}" 
-                 onclick="window.aperture.jumpToPhase('${phase.id}')"
-                 role="button"
-                 aria-pressed="${Store.state.currentPhase === phase.id}">
+                 onclick="window.aperture.jumpToPhase('${phase.id}')">
+                <div class="node-glow"></div>
                 <strong>${phase.title}</strong>
-                <p style="font-size: 0.75rem; color: var(--radiance-text-secondary);">${phase.id}</p>
+                <p>${phase.id.toUpperCase()}</p>
             </div>
         `).join('');
     }
@@ -90,60 +128,30 @@ class OcularAperture {
         this.queryInput.disabled = true;
 
         const startTime = performance.now();
-
-        // Resilience and retry logic
-        const transmit = async (retries = 3) => {
-            try {
-                const response = await fetch('http://127.0.0.1:8080/query', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        query: sanitizedQuery, 
-                        session_id: Store.state.session_id 
-                    })
-                });
-                if (!response.ok) throw new Error(`HTTP_${response.status}`);
-                return await response.json();
-            } catch (err) {
-                if (retries > 0) {
-                    this.logTelemetry("RETRANSMISSION_ATTEMPT", { remaining: retries });
-                    await new Promise(r => setTimeout(r, 1000));
-                    return transmit(retries - 1);
-                }
-                throw err;
-            }
-        };
-
-        const showProcessing = () => {
-            const indicator = document.createElement('div');
-            indicator.id = 'processing-indicator';
-            indicator.className = 'message ai processing';
-            indicator.textContent = 'Processing...';
-            this.chatConduit.appendChild(indicator);
-            this.chatConduit.scrollTop = this.chatConduit.scrollHeight;
-        };
-
-        const hideProcessing = () => {
-            const indicator = document.getElementById('processing-indicator');
-            if (indicator) indicator.remove();
-        };
+        this.showProcessing();
 
         try {
-            showProcessing();
-            const result = await transmit();
-            hideProcessing();
-            const latency = performance.now() - startTime;
+            const result = await ConduitProtocol.transmit('/query', {
+                query: sanitizedQuery,
+                session_id: Store.state.session_id
+            });
             
+            const latency = performance.now() - startTime;
+            this.hideProcessing();
             this.appendMessage('ai', result.response);
+            
             Store.update({ 
                 currentPhase: result.phase, 
                 session_id: result.session_id,
                 latency: latency
             });
-            this.logTelemetry("MODEL_RESPONSE_PULSE", { latency: latency.toFixed(2) });
+
+            // Update Ocular status
+            this.statusText.textContent = `Phase: ${result.phase.toUpperCase()}`;
             
         } catch (error) {
-            this.appendMessage('ai', "Systemic interruption detected after re-transmission attempts. Please check your connection.");
+            this.hideProcessing();
+            this.appendMessage('ai', "Systemic interruption detected. Re-aligning Hadron Core...");
             this.handleSystemicFault("Transmission Failure", error);
         } finally {
             this.queryInput.disabled = false;
@@ -154,33 +162,52 @@ class OcularAperture {
     appendMessage(role, text) {
         const msg = document.createElement('div');
         msg.className = `message ${role}`;
-        msg.textContent = text;
+        msg.innerHTML = `<div class="message-content">${text}</div><div class="message-timestamp">${new Date().toLocaleTimeString()}</div>`;
         this.chatConduit.appendChild(msg);
         this.chatConduit.scrollTop = this.chatConduit.scrollHeight;
     }
 
+    showProcessing() {
+        const loader = document.createElement('div');
+        loader.id = 'aperture-loader';
+        loader.className = 'message ai loading';
+        loader.innerHTML = '<div class="loading-pulse"></div> Processing Neural Pulse...';
+        this.chatConduit.appendChild(loader);
+        this.chatConduit.scrollTop = this.chatConduit.scrollHeight;
+    }
+
+    hideProcessing() {
+        const loader = document.getElementById('aperture-loader');
+        if (loader) loader.remove();
+    }
+
     jumpToPhase(phaseId) {
         Store.update({ currentPhase: phaseId });
-        this.appendMessage('ai', `Navigating to ${phaseId} module. What specific information do you require?`);
-        this.hydrateSubstrate(); // Refresh to ensure sync
+        this.appendMessage('ai', `Navigating to ${phaseId.toUpperCase()} module. Systemic integrity confirmed.`);
+        this.hydrateSubstrate();
     }
 
     handleSystemicFault(type, error) {
         console.error(`[FAULT] ${type}:`, error);
-        this.statusText.textContent = `Status: ${type}`;
-        this.statusText.parentElement.querySelector('.status-dot').style.background = '#ef4444';
+        this.statusText.textContent = `FAULT: ${type}`;
+        document.querySelector('.status-dot').classList.add('error');
     }
 
     render(state) {
-        // Granular re-rendering logic to reduce metabolic overhead
-        const timelineActive = document.querySelector('.timeline-node.active');
-        const activeId = timelineActive ? timelineActive.querySelector('p').textContent : null;
-        
-        if (state.currentPhase !== activeId) {
-            this.hydrateSubstrate(); 
-        }
+        // Update Telemetry Shield
+        this.telemetryShield.innerHTML = `
+            <div class="metric">LAT: ${state.latency.toFixed(0)}ms</div>
+            <div class="metric">RAD: ${state.radiance}%</div>
+            <div class="metric">CPU: ${state.metabolism.cpu}%</div>
+            <div class="metric">MEM: ${state.metabolism.mem.toFixed(1)}MB</div>
+        `;
+
+        // Update Timeline state
+        document.querySelectorAll('.timeline-node').forEach(node => {
+            const id = node.querySelector('p').textContent.toLowerCase();
+            node.classList.toggle('active', id === state.currentPhase);
+        });
     }
 }
 
-// Global exposure for event handlers
 window.aperture = new OcularAperture();

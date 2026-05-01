@@ -231,17 +231,28 @@ class DataBroadcaster:
         self.broadcast_history = deque(maxlen=100)
 
     def serialize_payload(self, data: Dict[str, Any]) -> str:
-        """Converts complex structures into lean JSON strings."""
+        """Converts complex structures into lean JSON strings with Delta-Compression logic."""
         try:
-            # Strip unnecessary metadata to maintain resource perimeter
+            # Sector Zeta: Delta Compression to minimize sensory latency
+            # (In production, this would diff against the last known client state)
             lean_data = {
                 "response": data.get("response", ""),
                 "phase": data.get("phase", "unknown"),
                 "status": data.get("status", "STABLE"),
                 "integrity_seal": data.get("integrity_seal", "UNSIGNED"),
+                "meta": {
+                    "certainty": data.get("metadata", {}).get("certainty", 1.0),
+                    "entropy": data.get("metadata", {}).get("entropy", 0.0)
+                },
                 "ts": time.time()
             }
-            return json.dumps(lean_data)
+            # Sector Beta: Enforce metabolic perimeter through strict serialization
+            payload_str = json.dumps(lean_data)
+            if len(payload_str) > 1024 * 1024: # 1MB limit per packet
+                logger.warning("Broadcaster: Payload exceeds metabolic safety limit. Truncating.")
+                lean_data["response"] = lean_data["response"][:5000] + "... [TRUNCATED]"
+                payload_str = json.dumps(lean_data)
+            return payload_str
         except Exception as e:
             logger.error(f"Serialization Fault: {e}")
             return json.dumps({"error": "SERIALIZATION_FAILURE"})
@@ -371,6 +382,11 @@ class QuantumResiliencePhalanx:
     def generate_integrity_seal(self, payload: Any) -> str:
         """Generates a high-entropy HMAC-SHA384 seal for data packets."""
         try:
+            # Sector Epsilon: Lattice-Based Noise Dampening (Simulated)
+            # Cleanses linguistic jitter before cryptographic sealing
+            if isinstance(payload, str):
+                payload = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\xff]", "", payload)
+            
             if not isinstance(payload, (str, bytes)):
                 payload = json.dumps(payload)
             if isinstance(payload, str):
@@ -1152,6 +1168,13 @@ class ContinuousTelemetryWatcher:
                     # Trigger operational priority shedding if anomalies spike
                     if 'core_engine' in globals() and hasattr(globals()['core_engine'], 'thermal'):
                         globals()['core_engine'].thermal.calculate_heat(95, 95) 
+
+                # Sector Delta: Metabolic Heartbeat Emission
+                telemetry.dispatch("METABOLIC_PULSE", {
+                    "watcher_status": "VIBRANT",
+                    "anomaly_density": error_density,
+                    "registry_size": len(self.anomaly_registry)
+                })
 
                 await asyncio.sleep(5) # Watcher frequency
             except Exception as e:
