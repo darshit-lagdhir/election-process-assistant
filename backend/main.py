@@ -82,9 +82,9 @@ class UltimateHadronConfig:
     The Immutable Foundation of Systemic Calibration.
     Engineered for high-availability cloud substrates and Intel Core i9 topologies.
     """
-    PROJECT_NAME: str = "Election Process Assistant"
-    ARCHITECTURAL_VERSION: str = "6.0.0-TRANSCENDENT"
-    CODENAME: str = "TRANSCENDENT_SINGULARITY_CONVERGENCE"
+    PROJECT_NAME: str = "Hadron Core Election Assistant"
+    ARCHITECTURAL_VERSION: str = "7.0.0-SOVEREIGN"
+    CODENAME: str = "SOVEREIGN_NEURAL_GROUNDING"
     
     # PATH MATRICES
     BASE_DIR: str = os.path.dirname(os.path.abspath(__file__))
@@ -608,6 +608,11 @@ async def api_reason(payload: Dict[str, Any]):
     radiance_engine.REQ_COUNTER.labels(status=result["status"]).inc()
     
     return result
+
+@app.get("/api/health")
+async def api_health():
+    """System Vitality Check for Docker Health monitoring."""
+    return {"status": "RADIANT", "version": config.ARCHITECTURAL_VERSION, "ts": time.time()}
 
 @app.get("/api/v6/hadron/telemetry")
 async def api_telemetry():
