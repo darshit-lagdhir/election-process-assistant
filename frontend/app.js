@@ -114,8 +114,24 @@ class OcularAperture {
             }
         };
 
+        const showProcessing = () => {
+            const indicator = document.createElement('div');
+            indicator.id = 'processing-indicator';
+            indicator.className = 'message ai processing';
+            indicator.textContent = 'Processing...';
+            this.chatConduit.appendChild(indicator);
+            this.chatConduit.scrollTop = this.chatConduit.scrollHeight;
+        };
+
+        const hideProcessing = () => {
+            const indicator = document.getElementById('processing-indicator');
+            if (indicator) indicator.remove();
+        };
+
         try {
+            showProcessing();
             const result = await transmit();
+            hideProcessing();
             const latency = performance.now() - startTime;
             
             this.appendMessage('ai', result.response);
@@ -156,8 +172,13 @@ class OcularAperture {
     }
 
     render(state) {
-        // Dynamic re-rendering logic for timeline
-        this.hydrateSubstrate(); 
+        // Granular re-rendering logic to reduce metabolic overhead
+        const timelineActive = document.querySelector('.timeline-node.active');
+        const activeId = timelineActive ? timelineActive.querySelector('p').textContent : null;
+        
+        if (state.currentPhase !== activeId) {
+            this.hydrateSubstrate(); 
+        }
     }
 }
 

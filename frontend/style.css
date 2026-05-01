@@ -136,6 +136,18 @@ header {
     border: 1px solid var(--radiance-border);
 }
 
+.message.ai.processing {
+    opacity: 0.7;
+    font-style: italic;
+    animation: pulse 1.5s infinite ease-in-out;
+}
+
+@keyframes pulse {
+    0% { opacity: 0.4; }
+    50% { opacity: 0.8; }
+    100% { opacity: 0.4; }
+}
+
 .message.user {
     align-self: flex-end;
     background: var(--radiance-accent);

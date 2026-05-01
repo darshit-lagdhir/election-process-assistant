@@ -19,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import google.generativeai as genai
 from dotenv import load_dotenv
+import psutil # For metabolic monitoring
 
 # --- CONFIGURATION KERNEL ---
 class Config:
@@ -32,6 +33,8 @@ class Config:
     CACHE_TTL_SECONDS = 300
     SESSION_MAX_HISTORY = 15
     AI_MODEL_NAME = 'gemini-2.5-flash'
+    CORE_DUMP_THRESHOLD = 0.90 # 90% resource usage
+    HEARTBEAT_INTERVAL = 30 # Seconds
 
 # --- TELEMETRY & OBSERVABILITY ---
 logging.basicConfig(
@@ -174,68 +177,90 @@ class TelemetryDispatcher:
 telemetry = TelemetryDispatcher()
 
 class WatchdogKernel:
-    """Monitor for subsystem health and restoration."""
+    """Monitors system components and executes restoration protocols."""
     def __init__(self, hadron_core: 'HadronCore'):
         self.hadron_core = hadron_core
+        self.check_interval = 30
+        self.last_audit = time.time()
 
     async def run_monitor(self):
-        """Health audits with Heartbeat Verification."""
+        """Periodic health audits with comprehensive state verification."""
         while True:
-            await asyncio.sleep(60) # Audit Pulse
-            
-            # Heartbeat Verification
-            if time.time() - self.hadron_core.heartbeat.last_pulse > 300:
-                telemetry.dispatch("HEARTBEAT_FAILURE_DETECTED", {"status": "RE_IGNITING"})
-                asyncio.create_task(self.hadron_core.heartbeat.run_heartbeat())
+            await asyncio.sleep(self.check_interval)
+            try:
+                # Core pulse verification
+                if time.time() - self.hadron_core.heartbeat.last_pulse > 120:
+                    telemetry.dispatch("HEARTBEAT_STALL_DETECTED", {"status": "RESTORING"})
+                    asyncio.create_task(self.hadron_core.heartbeat.run_heartbeat())
 
-            health_map = {
-                "consensus": await self.hadron_core.consensus.validate_integrity("HEALTH_CHECK"),
-                "audit": self.hadron_core.audit.verify_chain(),
-                "consistency": self.hadron_core.consistency.verify_consistency(self.hadron_core.orchestrator.substrate),
-                "orchestrator": await self.hadron_core.orchestrator.health_check()
-            }
-            
-            for component, status in health_map.items():
-                if not status:
-                    telemetry.dispatch("SUBSYSTEM_BREACH_DETECTED", {"component": component})
-                    await self.hadron_core.realign(component)
-                else:
-                    telemetry.dispatch("SUBSYSTEM_INTEGRITY_VERIFIED", {"component": component})
+                health_report = {
+                    "data_integrity": await self.hadron_core.orchestrator.health_check(),
+                    "audit_chain": self.hadron_core.audit.verify_chain(),
+                    "memory_load": psutil.Process().memory_info().rss / (1024 * 1024),
+                    "thread_pool": self.hadron_core.executor._max_workers
+                }
 
-class RecursiveKnowledgeEvolutionKernel:
-    """Updates the orchestrator upon version evolution."""
-    def __init__(self, orchestrator: 'DataOrchestrator'):
-        self.orchestrator = orchestrator
-        self.current_version = orchestrator.version
+                for component, status in health_report.items():
+                    if isinstance(status, bool) and not status:
+                        logger.warning(f"Watchdog: Component {component} failure detected. Initiating realignment.")
+                        await self.hadron_core.realign(component)
+                    
+                telemetry.dispatch("WATCHDOG_AUDIT_COMPLETE", health_report)
+            except Exception as e:
+                logger.error(f"Watchdog: Audit loop failure: {e}")
 
-    def check_and_evolve(self):
-        if self.orchestrator.version != self.current_version:
-            telemetry.dispatch("KNOWLEDGE_EVOLUTION_PULSE", {"old": self.current_version, "new": self.orchestrator.version})
-            # Update retrieval heuristics
-            self.current_version = self.orchestrator.version
-            logger.info(f"Recursive Evolution: Knowledge Substrate Transcended to v{self.current_version}")
+class AdversarialQuarantinePhalanx:
+    """Isolates sessions exhibiting adversarial linguistic patterns."""
+    def __init__(self):
+        self.quarantine_registry = set()
+        self.threat_scores = {} # session_id -> score
+
+    def record_threat(self, session_id: str, severity: float):
+        if session_id not in self.threat_scores:
+            self.threat_scores[session_id] = 0.0
+        self.threat_scores[session_id] += severity
+        
+        if self.threat_scores[session_id] > 5.0:
+            logger.warning(f"Security: Quarantining session {session_id} due to high threat score.")
+            self.quarantine_registry.add(session_id)
+            telemetry.dispatch("SESSION_QUARANTINE_ACTIVE", {"session": session_id})
+
+    def is_quarantined(self, session_id: str) -> bool:
+        return session_id in self.quarantine_registry
 
 class PredictiveScaler:
-    """Anticipate traffic spikes and scale the worker pool."""
+    """Optimizes worker pool topology based on request velocity and latency."""
     def __init__(self, executor: ThreadPoolExecutor):
-        self.request_history = deque(maxlen=1000)
         self.executor = executor
-        self.base_workers = 10
+        self.base_pool = 10
+        self.max_pool = 50
+        self.latency_buffer = deque(maxlen=50)
+        self.request_timestamps = deque(maxlen=200)
 
-    def record_request(self):
-        self.request_history.append(time.time())
-        self.calculate_scale()
+    def record_request(self, latency_ms: float = 0):
+        self.request_timestamps.append(time.time())
+        if latency_ms > 0:
+            self.latency_buffer.append(latency_ms)
+        self.evaluate_topology()
 
-    def calculate_scale(self):
+    def evaluate_topology(self):
+        """Calculates target worker count using load heuristics."""
         now = time.time()
-        velocity = sum(1 for t in self.request_history if t > now - 60)
-        if velocity > 50:
-            # Scale thread pool for high load
-            new_workers = self.base_workers * 2
-            self.executor._max_workers = new_workers
-            telemetry.dispatch("PREDICTIVE_SCALING", {"scale": 2.0, "velocity": velocity, "workers": new_workers})
-        else:
-            self.executor._max_workers = self.base_workers
+        # Calculate requests per second over the last minute
+        recent_reqs = [t for t in self.request_timestamps if t > now - 60]
+        rps = len(recent_reqs) / 60.0
+        
+        avg_latency = sum(self.latency_buffer) / len(self.latency_buffer) if self.latency_buffer else 0
+        
+        # Heuristic: Increase workers if RPS > 5 or Latency > 1000ms
+        target = self.base_pool
+        if rps > 5 or avg_latency > 1000:
+            target = min(self.max_pool, int(self.base_pool * (1 + (rps / 2)) + (avg_latency / 500)))
+            
+        if target != self.executor._max_workers:
+            logger.info(f"Scaling: Adjusting thread pool to {target} workers (RPS: {rps:.2f}, Lat: {avg_latency:.1f}ms)")
+            self.executor._max_workers = target
+            telemetry.dispatch("TOPOLOGY_ADJUSTMENT", {"workers": target, "rps": rps})
 
 class SelfOptimizer:
     """Adjusts parameters based on system metrics."""
@@ -256,6 +281,52 @@ class SelfOptimizer:
             if snapshot["avg_latency_ms"] > 1000:
                 Config.METABOLIC_PERIMETER_MB = 5.0
                 telemetry.dispatch("SELF_OPTIMIZATION", {"action": "REDUCE_METABOLIC_PERIMETER", "reason": "HIGH_LATENCY"})
+
+class FrequencyBasedCacheInvalidator:
+    """Synchronizes in-memory data with the disk-based substrate."""
+    def __init__(self, orchestrator: 'DataOrchestrator'):
+        self.orchestrator = orchestrator
+        self.last_mtime = 0
+        try:
+            self.last_mtime = os.path.getmtime(orchestrator.path)
+        except OSError:
+            pass
+
+    async def run_invalidation_loop(self):
+        """Monitors the data substrate for changes and triggers re-hydration."""
+        while True:
+            await asyncio.sleep(10)
+            try:
+                current_mtime = os.path.getmtime(self.orchestrator.path)
+                if current_mtime > self.last_mtime:
+                    logger.info("Cache Invalidator: Substrate change detected. Re-hydrating knowledge base.")
+                    self.orchestrator.load_and_verify()
+                    self.last_mtime = current_mtime
+                    telemetry.dispatch("CACHE_REHYDRATION_COMPLETE", {"path": self.orchestrator.path})
+            except Exception as e:
+                logger.error(f"Cache Invalidator: Sync failure: {e}")
+
+class MetabolicResourceMonitor:
+    """Enforces resource limits and priority shedding under high metabolic load."""
+    def __init__(self, cpu_threshold: float = 85.0, mem_threshold_mb: float = 512.0):
+        self.cpu_threshold = cpu_threshold
+        self.mem_threshold_mb = mem_threshold_mb
+        self.process = psutil.Process()
+
+    def check_metabolism(self) -> Dict[str, Any]:
+        """Returns current system metrics and shedding status."""
+        cpu = psutil.cpu_percent(interval=0.1)
+        mem = self.process.memory_info().rss / (1024 * 1024)
+        
+        shedding_active = cpu > self.cpu_threshold or mem > self.mem_threshold_mb
+        if shedding_active:
+            telemetry.dispatch("METABOLIC_SHEDDING_TRIGGERED", {"cpu": cpu, "mem": mem})
+            
+        return {
+            "cpu_percent": cpu,
+            "memory_mb": mem,
+            "shedding_active": shedding_active
+        }
 
 class NeuralSymbolicReasoningBridge:
     """Performs an audit on responses against the deterministic substrate."""
@@ -908,7 +979,8 @@ class HadronCore:
     def __init__(self, orchestrator: DataOrchestrator, executor: ThreadPoolExecutor):
         self.orchestrator = orchestrator
         self.executor = executor
-        self.watchdog = WatchdogKernel({"orchestrator": orchestrator})
+        self.heartbeat = SystemicHeartbeatEmitter(self) # Initialize heartbeat first
+        self.watchdog = WatchdogKernel(self)
         self.scaler = PredictiveScaler(executor)
         self.optimizer = SelfOptimizer()
         self.meta_cognition = MetaCognitiveKernel()
@@ -936,13 +1008,13 @@ class HadronCore:
         self.geospatial = geospatial_kernel
         self.quarantine = AdversarialQuarantinePhalanx()
         self.quantum = quantum_phalanx
-        self.heartbeat = SystemicHeartbeatEmitter(self)
         self.dampener = SystemicEntropyDampener(self.scaler)
         self.recalibrator = NeuralContextRecalibrator()
-        self.forensics = ForensicAuditTrail(os.getenv("SESSION_SECRET", "SOVEREIGN_SECRET"))
+        self.forensics = ForensicAuditTrail(os.getenv("SESSION_SECRET", "SESSION_SECRET"))
         self.synthesizer = AdaptiveNeuralSynthesizer(self.bridge)
         self.thermal = MetabolicThermalMonitor()
         self.buffer = AutoRegenerativeStateBuffer()
+        self.monitor = MetabolicResourceMonitor() # Real-time metabolic monitoring
         self.is_active = True
 
     async def realign(self, component: str):
@@ -1194,17 +1266,22 @@ ai_model = genai.GenerativeModel(Config.AI_MODEL_NAME)
 
 # --- API ROUTES ---
 
-@app.get("/health")
-async def diagnostic_broadcasting():
-    """Real-time system diagnostics."""
+@app.get("/health/diagnostics")
+async def system_diagnostics():
+    """Provides a detailed radiograph of system health and resource consumption."""
+    metabolism = hadron_core.monitor.check_metabolism()
     return {
-        "status": "SOVEREIGN",
-        "radiance_score": f"{hadron_core.radiance.calculate_radiance()}%",
+        "status": "STABLE",
+        "version": Config.VERSION,
+        "metabolism": metabolism,
         "metrics": metrics.get_snapshot(),
-        "integrity": orchestrator.checksum,
-        "config": {
-            "model": Config.AI_MODEL_NAME,
-            "version": Config.VERSION
+        "topology": {
+            "active_workers": hadron_core.executor._max_workers,
+            "session_count": len(SESSIONS)
+        },
+        "integrity": {
+            "substrate_checksum": orchestrator.checksum,
+            "audit_chain_verified": hadron_core.audit.verify_chain()
         }
     }
 
