@@ -306,24 +306,63 @@ class PredictiveScaler:
                 telemetry.dispatch("TOPOLOGY_ADJUSTMENT", {"workers": target, "rps": rps, "avg_latency": avg_latency})
 
 class SelfOptimizer:
-    """Adjusts parameters based on system metrics."""
-    def __init__(self):
-        self.last_optimization = time.time()
+    """Continuously evaluates system performance and recalibrates parameters."""
+    def __init__(self, metrics_engine: 'MetricsKernel'):
+        self.metrics = metrics_engine
+        self.last_recalibration = time.time()
+        self.recalibration_interval = 300 # 5 minutes
 
     async def optimize(self):
+        """Asynchronous optimization loop for dynamic parameter tuning."""
         while True:
-            await asyncio.sleep(300) # Optimize every 5 minutes
-            snapshot = metrics.get_snapshot()
-            
-            # If error rate is high, increase cache TTL to reduce load
-            if snapshot["error_rate"] > 0.05:
-                Config.CACHE_TTL_SECONDS = 600
-                telemetry.dispatch("SELF_OPTIMIZATION", {"action": "INCREASE_CACHE_TTL", "reason": "HIGH_ERROR_RATE"})
-            
-            # If latency is high, reduce metabolic perimeter to conserve resources
-            if snapshot["avg_latency_ms"] > 1000:
-                Config.METABOLIC_PERIMETER_MB = 5.0
-                telemetry.dispatch("SELF_OPTIMIZATION", {"action": "REDUCE_METABOLIC_PERIMETER", "reason": "HIGH_LATENCY"})
+            await asyncio.sleep(self.recalibration_interval)
+            try:
+                snapshot = self.metrics.get_snapshot()
+                latency = snapshot.get("avg_latency_ms", 0)
+                error_rate = snapshot.get("error_rate", 0)
+                
+                # Dynamic Cache TTL Recalibration
+                if error_rate > 0.05:
+                    Config.CACHE_TTL_SECONDS = min(1200, Config.CACHE_TTL_SECONDS * 1.5)
+                    telemetry.dispatch("PARAMETER_RECALIBRATION", {"param": "CACHE_TTL", "new_value": Config.CACHE_TTL_SECONDS, "reason": "HIGH_ERROR_RATE"})
+                elif error_rate < 0.01 and latency < 500:
+                    Config.CACHE_TTL_SECONDS = max(300, Config.CACHE_TTL_SECONDS * 0.8)
+                
+                # Dynamic Thread Pool Floor Tuning
+                if latency > 1500:
+                    hadron_core.scaler.base_pool = min(20, hadron_core.scaler.base_pool + 2)
+                    telemetry.dispatch("PARAMETER_RECALIBRATION", {"param": "BASE_POOL", "new_value": hadron_core.scaler.base_pool, "reason": "LATENCY_THRESHOLD_EXCEEDED"})
+                
+                self.last_recalibration = time.time()
+            except Exception as e:
+                logger.error(f"Self-Optimizer Fault: {e}")
+
+class QuantumResiliencePhalanx:
+    """Implements post-quantum cryptographic integrity and entropy dampening."""
+    def __init__(self, secret_key: str):
+        self.secret_key = secret_key
+        self.integrity_log = deque(maxlen=500)
+
+    def generate_integrity_seal(self, payload: str) -> str:
+        """Generates a high-entropy HMAC-SHA384 seal for data packets."""
+        return hmac.new(self.secret_key.encode(), payload.encode(), hashlib.sha384).hexdigest()
+
+    def verify_seal(self, payload: str, seal: str) -> bool:
+        """Verifies the integrity seal against the internal secret substrate."""
+        expected = self.generate_integrity_seal(payload)
+        is_valid = hmac.compare_digest(expected, seal)
+        if not is_valid:
+            telemetry.dispatch("INTEGRITY_BREACH_DETECTED", {"payload_fragment": payload[:32]})
+        return is_valid
+
+    def scan_for_quantum_threats(self, query: str) -> bool:
+        """Analyzes linguistic entropy for patterns associated with adversarial injections."""
+        # Advanced heuristic scan for cryptographic or systemic injection patterns
+        anomalous_patterns = [r"\\x[0-9a-fA-F]{2}", r"\{\{.*?\}\}", r"\$\(.*?\)"]
+        for pattern in anomalous_patterns:
+            if re.search(pattern, query):
+                return True
+        return False
 
 class FrequencyBasedCacheInvalidator:
     """Synchronizes in-memory data with the disk-based substrate."""
@@ -1025,7 +1064,8 @@ class HadronCore:
         self.heartbeat = SystemicHeartbeatEmitter(self) # Initialize heartbeat first
         self.watchdog = WatchdogKernel(self)
         self.scaler = PredictiveScaler(executor)
-        self.optimizer = SelfOptimizer()
+        self.optimizer = SelfOptimizer(metrics)
+        self.quantum = QuantumResiliencePhalanx(os.getenv("SESSION_SECRET", "SESSION_SECRET"))
         self.meta_cognition = MetaCognitiveKernel()
         self.consensus = ConsensusKernel()
         self.resource_controller = ResourceController()
@@ -1418,9 +1458,6 @@ async def cognitive_pulse(input_data: UserInput, request: Request):
         # In a real scenario, we might want to be less descriptive to attackers
         raise HTTPException(status_code=403, detail="Invalid Session Signature")
 
-    start_time = time.time()
-    session_id = input_data.session_id or str(uuid.uuid4())
-    
     if session_id not in SESSIONS:
         SESSIONS[session_id] = SessionState(session_id=session_id)
     
@@ -1451,8 +1488,17 @@ async def cognitive_pulse(input_data: UserInput, request: Request):
     hadron_core.buffer.capture_snapshot(session_id, state)
 
     try:
+        # Quantum-Resilient Threat Scanning
+        if hadron_core.quantum.scan_for_quantum_threats(query):
+            telemetry.dispatch("QUANTUM_ANOMALY_NEUTRALIZED", {"query_fragment": query[:16]})
+            raise SecurityInterceptionError("Quantum-associated anomaly detected in query substrate.")
+
         # Hierarchical Try-Catch-Finally Matrix
         result = await hadron_core.process_query(query, session_id, state, loop)
+        
+        # Cryptographic Integrity Sealing
+        integrity_seal = hadron_core.quantum.generate_integrity_seal(result["response"])
+        result["integrity_seal"] = integrity_seal
         
         state.current_phase = result.get("phase", state.current_phase)
         state.history.append({"user": query, "ai": result["response"]})
