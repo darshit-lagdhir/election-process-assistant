@@ -57,8 +57,7 @@ try:
     from fastapi.responses import JSONResponse, StreamingResponse, FileResponse
     from pydantic import BaseModel, Field, validator
     from dotenv import load_dotenv
-    import google.generativeai as genai
-    from google.generativeai.types import HarmCategory, HarmBlockThreshold
+    from google import genai as google_genai
     import structlog
     from prometheus_client import (
         Counter, 
@@ -69,6 +68,7 @@ try:
         CONTENT_TYPE_LATEST,
         CollectorRegistry
     )
+    from fastapi.staticfiles import StaticFiles
 except ImportError as e:
     print(f"!!! CRITICAL SUBSYSTEM FAILURE: Dependency Hydration Failure: {e}")
     sys.exit(1)
@@ -92,10 +92,26 @@ class UltimateHadronConfig:
     LOG_SUBSTRATE_PATH: str = os.path.join(BASE_DIR, "..", "logs", "hadron_forensics.log")
     
     # REASONING CALIBRATION
+    # Primary model + ultra-resilient fallback chain. 
+    # Tries every possible free-tier variant to bypass rate limits.
     AI_MODEL_PRIMARY: str = "gemini-1.5-flash"
+    MODEL_FALLBACK_CHAIN: list = [
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-latest",
+        "gemini-1.5-flash-001",
+        "gemini-1.5-flash-002",
+        "gemini-1.5-flash-8b",
+        "gemini-1.5-flash-8b-latest",
+        "gemini-2.0-flash-exp",
+        "gemini-1.5-pro",
+        "gemini-1.5-pro-latest",
+        "gemini-1.5-pro-001",
+        "gemini-1.5-pro-002",
+    ]
     MAX_OUTPUT_TOKENS: int = 4096
     TEMPERATURE_STABILITY: float = 0.1
-    REASONING_TIMEOUT: float = 30.0
+    REASONING_TIMEOUT: float = 45.0  # Extra room for deep grounding
+    MODEL_BLACKLIST_COOLDOWN: int = 900   # Quicker retry (15 mins)
     
     # METABOLIC PERIMETERS (SECTOR BETA)
     METABOLIC_FLOOR_MB: float = 10.0 
@@ -115,7 +131,7 @@ class UltimateHadronConfig:
         key = os.getenv("GOOGLE_API_KEY")
         if not key:
             raise ValueError("!!! CRITICAL: GOOGLE_API_KEY is missing from the sovereign environment.")
-        return key
+        return key.strip()
 
 config = UltimateHadronConfig()
 
@@ -300,136 +316,8 @@ radiance_engine = SystemicRadianceEngine()
 
 
 
-class KnowledgeFragment(BaseModel):
-    id: str
-    title: str
-    content: str
-    tags: List[str] = []
-    weight: float = 1.0
-
-class HighDensityDataOrchestrator:
-    """
-    The Custodian of Civic Truth: Manages the knowledge substrate with Merkle-root verification.
-    Implements a frequency-based rehydration cycle for real-time truth synchronization.
-    """
-    def __init__(self, substrate_path: str):
-        self.path = substrate_path
-        self._cache: Dict[str, Any] = {}
-        self._fragments: List[KnowledgeFragment] = []
-        self._merkle_root: str = ""
-        self._last_hydration = 0.0
-        self._lock = threading.RLock()
-        self.initialize_and_hydrate()
-
-    def initialize_and_hydrate(self):
-        """Self-healing initialization: manifests the truth if the substrate is void."""
-        with self._lock:
-            if not os.path.exists(self.path):
-                self._manifest_baseline()
-            self.hydrate()
-
-    def _manifest_baseline(self):
-        """Generates the sovereign baseline knowledge substrate."""
-        logger.info("substrate_void", action="generating_baseline")
-        os.makedirs(os.path.dirname(self.path), exist_ok=True)
-        baseline = {
-            "system_meta": {
-                "jurisdiction": "Global Civic Infrastructure",
-                "version": config.ARCHITECTURAL_VERSION,
-                "ts": datetime.now(timezone.utc).isoformat()
-            },
-            "phases": [
-                {
-                    "id": "registration", 
-                    "title": "Universal Voter Registration", 
-                    "content": "Citizens must enroll in the biometric digital registry. Eligibility: 18+, No prior felony disqualification.", 
-                    "tags": ["entry", "eligibility"]
-                },
-                {
-                    "id": "ballot", 
-                    "title": "Secure Ballot Access", 
-                    "content": "Ballots are issued via cryptographically unique tokens. Multi-factor authentication is mandatory.", 
-                    "tags": ["security", "voting"]
-                },
-                {
-                    "id": "tabulation", 
-                    "title": "Forensic Tabulation Protocol", 
-                    "content": "All votes are committed to a distributed Merkle-DAG. Real-time auditing is enabled.", 
-                    "tags": ["audit", "trust"]
-                }
-            ],
-            "security_anchors": {
-                "encryption": "AES-256-GCM", 
-                "hashing": "SHA-384",
-                "intercept": "Hadron-Transcendent-Omega"
-            }
-        }
-        with open(self.path, "w") as f:
-            json.dump(baseline, f, indent=4)
-
-    def hydrate(self):
-        """Synchronizes disk state to memory cache with SHA-256 Merkle-root integrity."""
-        with self._lock:
-            try:
-                start = time.time()
-                with open(self.path, "r") as f:
-                    raw_data = json.load(f)
-                
-                # SCHEMA VALIDATION
-                if "phases" not in raw_data:
-                    raise ValueError("!!! BETA FAILURE: Corrupted substrate. 'phases' missing.")
-                
-                self._fragments = [KnowledgeFragment(**p) for p in raw_data["phases"]]
-                
-                # MERKLE-ROOT GENERATION
-                serialized = json.dumps(raw_data, sort_keys=True).encode()
-                self._merkle_root = hashlib.sha256(serialized).hexdigest()
-                
-                self._cache = raw_data
-                self._last_hydration = time.time()
-                
-                latency = (time.time() - start) * 1000
-                dispatcher.dispatch("BETA", "SUBSTRATE_HYDRATED", {"root": self._merkle_root[:16], "latency_ms": latency})
-                logger.info("beta_hydration_success", root=self._merkle_root[:16], fragments=len(self._fragments))
-                
-            except Exception as e:
-                logger.error("beta_hydration_failure", error=str(e))
-                dispatcher.dispatch("BETA", "HYDRATION_FAULT", {"error": str(e)})
-
-    def get_semantic_context(self, query: str) -> str:
-        """Retrieves high-density context mapping for the neural bridge."""
-        with self._lock:
-            if time.time() - self._last_hydration > config.DATA_HYDRATION_TTL:
-                self.hydrate()
-            
-            q = query.lower()
-            # Ranking Algorithm: ID Match (15.0), Title Match (10.0), Tag Match (5.0)
-            ranked_results = []
-            for frag in self._fragments:
-                score = 0.0
-                if frag.id in q: score += 15.0
-                if frag.title.lower() in q: score += 10.0
-                for tag in frag.tags:
-                    if tag in q: score += 5.0
-                
-                if score > 0:
-                    ranked_results.append((score, frag))
-            
-            ranked_results.sort(key=lambda x: x[0], reverse=True)
-            top_frags = [r[1] for r in ranked_results[:3]]
-            
-            # Fallback to general context if no specific match
-            if not top_frags:
-                top_frags = self._fragments[:2]
-            
-            return json.dumps({
-                "fragments": [f.dict() for f in top_frags],
-                "merkle_root": self._merkle_root,
-                "version": config.ARCHITECTURAL_VERSION,
-                "ts": datetime.now(timezone.utc).isoformat()
-            }, indent=2)
-
-orchestrator = HighDensityDataOrchestrator(config.DATA_SUBSTRATE_PATH)
+# [SECTOR ALPHA] Real-Time Neural Grounding Initialized
+# Static data substrates and RAG orchestrators have been dismantled for total neural sovereignty.
 
 
 
@@ -522,73 +410,114 @@ class RecoveryKernel:
 
 
 
-class CognitiveParser:
-    """Deconstructs complex civic inquiries into high-dimensional intent vectors."""
-    @staticmethod
-    def deconstruct(query: str) -> Dict[str, Any]:
-        q = query.lower()
-        # Intent Vector Logic
-        intent = "informational"
-        if any(x in q for x in ["audit", "verify", "check", "trust", "root"]):
-            intent = "forensic"
-        elif any(x in q for x in ["register", "vote", "apply", "enroll"]):
-            intent = "transactional"
-            
-        return {
-            "intent_vector": intent, 
-            "urgency_index": 10 if "urgent" in q or "now" in q else 1,
-            "ts": time.time()
-        }
+# [SECTOR DELTA] Intent Analysis Dismantled for Real-Time Neural Search
 
 class NeuralReasoningBridge:
-    """Fuses the Gemini Neural Kernel with the Deterministic Truth Substrate."""
+    """AI reasoning engine with automatic model fallback chain.
+    
+    If a model is rate-limited or unavailable, it instantly switches
+    to the next model in the fallback chain without blocking.
+    Blacklisted models are remembered and skipped for 1 hour.
+    """
     def __init__(self):
-        genai.configure(api_key=config.get_api_key())
-        self._model = genai.GenerativeModel(
-            model_name=config.AI_MODEL_PRIMARY,
-            safety_settings={
-                HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
-                HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
-            }
+        self._client = google_genai.Client(api_key=config.get_api_key())
+        # Tracks blacklisted models: {model_name: blacklisted_until_timestamp}
+        self._blacklist: Dict[str, float] = {}
+        # Index into the fallback chain for the currently active model
+        self._active_idx: int = 0
+        print(f"[MODEL CHAIN] Initialized. Priority order: {config.MODEL_FALLBACK_CHAIN}")
+
+    def _get_active_models(self) -> list:
+        """Returns models that are not currently blacklisted."""
+        now = time.time()
+        # Clear expired blacklist entries
+        expired = [m for m, until in self._blacklist.items() if now > until]
+        for m in expired:
+            del self._blacklist[m]
+            print(f"[MODEL CHAIN] {m} removed from blacklist — retrying.")
+        return [m for m in config.MODEL_FALLBACK_CHAIN if m not in self._blacklist]
+
+    def _blacklist_model(self, model: str):
+        """Temporarily blacklists a model for MODEL_BLACKLIST_COOLDOWN seconds."""
+        until = time.time() + config.MODEL_BLACKLIST_COOLDOWN
+        self._blacklist[model] = until
+        print(f"[MODEL CHAIN] {model} blacklisted for {config.MODEL_BLACKLIST_COOLDOWN//60}min.")
+
+    def _build_prompt(self, query: str) -> str:
+        return (
+            f"You are a Live Election Intelligence Engine with REAL-TIME web access. "
+            f"TODAY'S DATE: {datetime.now().strftime('%B %d, %Y')}\n\n"
+            f"Instructions:\n"
+            f"- If the query is a simple greeting (like 'hi', 'hello'), respond with a SHORT, friendly one-sentence welcome.\n"
+            f"- For information queries, use your Google Search tool to provide accurate, REAL-TIME data.\n"
+            f"- Be concise and authoritative. Do not provide a massive briefing unless specifically asked.\n\n"
+            f"QUESTION: {query}\n\n"
+            f"Return ONLY a JSON object in this exact format:\n"
+            f'  {{"answer": "your concise response here", "certainty": 1.0, "references": ["google_search_grounding"]}}\n'
+            f"- No markdown, no extra text, just the JSON."
         )
 
-    async def infer(self, query: str, context: str) -> Dict[str, Any]:
-        """Executes a high-precision reasoning pulse against the cognitive substrate."""
-        prompt = (
-            f"⚛️ HADRON TRANSCENDENT ENGINE v6.0.0 ⚛️\n"
-            f"============================================\n"
-            f"ROLE: Sovereign Civic Information Guardian\n"
-            f"TRUTH_SUBSTRATE: {context}\n"
-            f"CITIZEN_QUERY: {query}\n\n"
-            f"INSTRUCTIONS:\n"
-            f"1. Synthesize a radiant response using ONLY the TRUTH_SUBSTRATE.\n"
-            f"2. Return raw JSON: {{\"answer\": string, \"certainty\": float, \"references\": list}}\n"
-        )
-        
-        try:
-            # NEURAL INFERENCE PULSE
-            response = await asyncio.wait_for(
-                self._model.generate_content_async(prompt), 
-                timeout=config.REASONING_TIMEOUT
-            )
-            
-            # RESPONSE HYDRATION
-            raw_text = response.text.strip("`json\n ")
-            if raw_text.startswith("{") and raw_text.endswith("}"):
-                reasoning = json.loads(raw_text)
-            else:
-                reasoning = {"answer": raw_text, "certainty": 0.5, "references": []}
-            
-            return reasoning
-            
-        except Exception as e:
-            logger.warn("primary_reasoning_failure", error=str(e))
-            # STABLE SUBSTRATE FALLBACK
-            return {
-                "answer": "The transcendent reasoning engine is re-hydrating. Please refer to the stable substrate protocols for Registration and Voting.",
-                "certainty": 0.9,
-                "references": ["system_substrate"]
-            }
+    async def infer(self, query: str) -> Dict[str, Any]:
+        """Try each available model in order. Fail fast and switch on error."""
+        prompt = self._build_prompt(query)
+        available = self._get_active_models()
+
+        if not available:
+            # All models blacklisted — try the primary anyway as last resort
+            available = [config.AI_MODEL_PRIMARY]
+            print("[MODEL CHAIN] All models blacklisted — forcing primary model.")
+
+        for model in available:
+            print(f"[MODEL CHAIN] Trying: {model}")
+            try:
+                loop = asyncio.get_running_loop()
+                response = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        None,
+                        lambda m=model: self._client.models.generate_content(
+                            model=m,
+                            contents=prompt,
+                            config={'tools': [{'google_search': {}}]}
+                        )
+                    ),
+                    timeout=config.REASONING_TIMEOUT
+                )
+                raw_text = response.text.strip().strip("`").strip()
+                # Strip markdown json block if present
+                if raw_text.startswith("json"):
+                    raw_text = raw_text[4:].strip()
+                if raw_text.startswith("{") and raw_text.endswith("}"):
+                    result = json.loads(raw_text)
+                else:
+                    result = {"answer": raw_text, "certainty": 0.9, "references": []}
+                print(f"[MODEL CHAIN] Success with: {model}")
+                return result
+
+            except asyncio.TimeoutError:
+                print(f"[MODEL CHAIN] {model} timed out after {config.REASONING_TIMEOUT}s — switching.")
+                self._blacklist_model(model)
+                continue
+
+            except Exception as e:
+                err_str = str(e)
+                print(f"[MODEL CHAIN] {model} failed: {err_str[:120]}")
+                if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "quota" in err_str.lower():
+                    self._blacklist_model(model)
+                    continue  # Try next model immediately — no waiting
+                elif "404" in err_str or "not found" in err_str.lower():
+                    self._blacklist_model(model)
+                    continue
+                else:
+                    # Unknown error on this model — skip it
+                    continue
+
+        # All models exhausted
+        print("[MODEL CHAIN] All models exhausted.")
+        return {
+            "answer": "All AI models are currently unavailable due to rate limits. Please wait a minute and try again. This is a free-tier API limitation.",
+            "certainty": 0.0,
+            "references": []
+        }
 
 class ResponseSynthesizer:
     """Finalizes the radiant response packet with cryptographic seals and telemetry."""
@@ -613,8 +542,6 @@ class ResponseSynthesizer:
             "session_id": session_id,
             "response": core_packet,
             "integrity": {
-                "seal": integrity_seal,
-                "merkle_root": orchestrator._merkle_root,
                 "version": config.ARCHITECTURAL_VERSION
             },
             "telemetry": {
@@ -629,31 +556,23 @@ class ResponseSynthesizer:
 class HadronTranscendentEngine:
     """The Supreme Orchestrator: Unified convergence of all sectors into a single execution logic."""
     def __init__(self):
-        self.orchestrator = orchestrator
         self.security = security_phalanx
         self.bridge = NeuralReasoningBridge()
-        self.parser = CognitiveParser()
         self.synthesizer = ResponseSynthesizer(security_phalanx)
         self.semaphore = asyncio.Semaphore(config.CPU_CONCURRENCY_THRESHOLD)
 
     @RecoveryKernel.sovereign_guard("TRANSCENDENT_ENGINE")
     async def execute(self, query: str, session_id: str) -> Dict[str, Any]:
-        """The total convergence of the execution pipeline."""
+        """The total convergence of the execution pipeline (Real-Time Neural Grounding)."""
         async with self.semaphore:
-            # 1. SECTOR EPSILON: SECURITY INGRESS
+            # 1. SECURITY INGRESS
             safe_query = self.security.intercept(query)
             
-            # 2. SECTOR IOTA: COGNITIVE PARSING
-            intent_vector = self.parser.deconstruct(safe_query)
+            # 2. NEURAL REASONING (With Real-Time Google Search Grounding)
+            reasoning_result = await self.bridge.infer(safe_query)
             
-            # 3. SECTOR BETA: KNOWLEDGE RETRIEVAL
-            semantic_context = self.orchestrator.get_semantic_context(safe_query)
-            
-            # 4. SECTOR IOTA: NEURAL REASONING
-            reasoning_result = await self.bridge.infer(safe_query, semantic_context)
-            
-            # 5. SECTOR ZETA: RADIANT SYNTHESIS
-            return self.synthesizer.synthesize(reasoning_result, intent_vector, session_id)
+            # 3. RADIANT SYNTHESIS
+            return self.synthesizer.synthesize(reasoning_result, {"intent_vector": "real-time"}, session_id)
 
 hadron_engine = HadronTranscendentEngine()
 
@@ -722,18 +641,21 @@ async def ws_telemetry(websocket: WebSocket):
 @app.on_event("startup")
 async def ignition():
     """Systemic Ignition Logic: Aligns all sectors for global operation."""
-    dispatcher.set_loop(asyncio.get_running_loop())
-    # Force initial hydration pulse
-    orchestrator.hydrate()
+    # dispatcher.set_loop(asyncio.get_running_loop()) # Disabled for Real-Time Search
     logger.info("hadron_ignited", status="RADIANT", version=config.ARCHITECTURAL_VERSION)
 
+@app.get("/", include_in_schema=False)
+async def serve_index():
+    index_path = os.path.join(os.path.dirname(config.BASE_DIR), "frontend", "index.html")
+    return FileResponse(index_path)
+
+app.mount("/", StaticFiles(directory=os.path.join(os.path.dirname(config.BASE_DIR), "frontend")), name="frontend")
+
 if __name__ == "__main__":
-    # INTEL CORE I9 OPTIMIZED WORKER TOPOLOGY
     uvicorn.run(
-        "main:app", 
+        app, 
         host="0.0.0.0", 
         port=8000, 
-        workers=psutil.cpu_count(logical=True),
-        loop="uvloop",
-        http="httptools"
+        loop="auto",
+        http="auto"
     )

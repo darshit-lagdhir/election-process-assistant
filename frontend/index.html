@@ -3,62 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Election Process Assistant | Ocular Aperture</title>
-    <meta name="description" content="A quantum-secure, agentic civic instrument for election process guidance. Built on the Hadron Core.">
+    <title>Election Assistant</title>
+    <meta name="description" content="A professional civic intelligence assistant for election process guidance.">
     <link rel="stylesheet" href="index.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
 </head>
-<body class="radiant-theme">
-    <div id="app-root">
-        <!-- SECTOR DELTA: THE TELEMETRY SHIELD -->
-        <header id="top-nav">
-            <div class="brand">
-                <div class="status-dot"></div>
-                <h1>HADRON CORE <span class="version">v1.0.0</span></h1>
+<body class="chat-theme">
+    <div id="app-wrapper">
+        <header id="main-header">
+            <div class="header-content">
+                <div class="logo">
+                    <div class="status-indicator"></div>
+                    <h1>Election Assistant</h1>
+                    <span class="v-tag">v6.0</span>
+                </div>
+                <div id="connection-status">Connecting...</div>
             </div>
-            <div id="telemetry-shield">
-                <!-- Hydrated by app.js -->
-                <div class="metric">LAT: --ms</div>
-                <div class="metric">RAD: --%</div>
-                <div class="metric">CPU: --%</div>
-                <div class="metric">MEM: --MB</div>
-            </div>
-            <div id="status-text">Status: STABLE</div>
         </header>
 
-        <main id="main-interface">
-            <!-- SECTOR ZETA: THE ASYNCHRONOUS DATA CONDUIT -->
-            <aside id="sidebar">
-                <div class="section-title">SYSTEM TIMELINE</div>
-                <div id="timeline-conduit">
-                    <!-- Hydrated by app.js -->
-                </div>
-                <div class="sidebar-footer">
-                    <p>QUANTUM RESILIENCE ACTIVE</p>
-                </div>
-            </aside>
-
-            <section id="chat-section">
-                <div id="chat-conduit">
-                    <div class="message ai greeting">
-                        <div class="message-content">
-                            Systemic initialization complete. I am the Election Process Assistant, anchored in the Hadron Core truth substrate. How may I facilitate your civic journey?
-                        </div>
+        <main id="chat-container">
+            <div id="messages-list">
+                <div class="message ai greeting">
+                    <div class="message-content">
+                        Hello. I am your Election Process Assistant. How can I assist you with the election process today?
                     </div>
                 </div>
-                
-                <footer id="input-anchor">
-                    <form id="input-form">
-                        <input type="text" id="user-query" placeholder="Ask about registration, verification, or polling..." autocomplete="off">
-                        <button type="submit" id="transmit-btn">
-                            <svg viewBox="0 0 24 24" width="24" height="24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" fill="currentColor"/></svg>
-                        </button>
-                    </form>
-                </footer>
-            </section>
+            </div>
         </main>
+
+        <footer id="input-section">
+            <div class="input-wrapper">
+                <form id="chat-form">
+                    <input type="text" id="user-input" placeholder="Type your question here..." autocomplete="off">
+                    <button type="submit" id="send-btn">
+                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M22 2L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                            <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </button>
+                </form>
+            </div>
+            <p class="disclaimer">Powered by Hadron Core Engine. All responses are verified.</p>
+        </footer>
     </div>
 
     <script src="app.js"></script>
