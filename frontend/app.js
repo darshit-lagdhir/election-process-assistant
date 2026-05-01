@@ -72,8 +72,8 @@ class OcularAperture {
         this.inputForm.addEventListener('submit', (e) => this.handleTransmission(e));
         Store.subscribe((state) => this.render(state));
         
-        // Start background metabolic sync
-        this.beginMetabolicSync();
+        // Sector Zeta: Initialize High-Frequency Telemetry Conduit
+        this.initializeTelemetryConduit();
         await this.hydrateSubstrate();
     }
 
@@ -88,22 +88,38 @@ class OcularAperture {
         }
     }
 
-    async beginMetabolicSync() {
-        setInterval(async () => {
-            try {
-                const response = await fetch('http://127.0.0.1:8000/health/diagnostics');
-                const stats = await response.json();
-                Store.update({ 
-                    radiance: stats.cryptography.security_score,
-                    metabolism: { 
-                        cpu: stats.metabolism.cpu_percent, 
-                        mem: stats.metabolism.memory_mb 
-                    }
-                });
-            } catch (err) {
-                // Background sync failure is non-blocking
-            }
-        }, 5000);
+    initializeTelemetryConduit() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        // Dynamic detection of host to support local and cloud deployments (Sector Alpha)
+        const host = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+                     ? '127.0.0.1:8000' : window.location.host;
+        const wsUrl = `${protocol}//${host}/ws/telemetry`;
+        
+        console.log(`[CONDUIT] Initializing real-time telemetry: ${wsUrl}`);
+        this.socket = new WebSocket(wsUrl);
+
+        this.socket.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            Store.update({ 
+                radiance: data.radiance,
+                metabolism: { 
+                    cpu: data.cpu, 
+                    mem: data.mem 
+                },
+                active_workers: data.active_workers
+            });
+            this.statusText.textContent = `Status: ${data.status}`;
+            document.querySelector('.status-dot').className = `status-dot ${data.status.toLowerCase()}`;
+        };
+
+        this.socket.onclose = () => {
+            console.warn("[CONDUIT] Telemetry disconnected. Re-aligning in 5s...");
+            setTimeout(() => this.initializeTelemetryConduit(), 5000);
+        };
+
+        this.socket.onerror = (err) => {
+            console.error("[CONDUIT] Telemetry fault:", err);
+        };
     }
 
     renderTimeline(phases) {

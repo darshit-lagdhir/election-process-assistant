@@ -1,0 +1,26 @@
+{
+    "phases": [
+        {
+            "id": "registration",
+            "title": "Voter Registration",
+            "content": "Citizens must enroll in the biometric digital registry. Eligibility: 18+.",
+            "tags": ["entry"]
+        },
+        {
+            "id": "ballot",
+            "title": "Ballot Casting",
+            "content": "Execute your sovereign choice via cryptographically unique tokens.",
+            "tags": ["voting"]
+        },
+        {
+            "id": "tabulation",
+            "title": "Forensic Tabulation Protocol",
+            "content": "All votes are committed to a distributed Merkle-DAG for auditing.",
+            "tags": ["audit"]
+        }
+    ],
+    "security": {
+        "encryption": "SHA-384",
+        "intercept": "Hadron-Omega"
+    }
+}
