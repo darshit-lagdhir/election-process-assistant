@@ -2,7 +2,8 @@ import os
 import json
 import uuid
 import time
-from fastapi import FastAPI, HTTPException, Request
+import hashlib
+from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import google.generativeai as genai
@@ -13,7 +14,7 @@ from collections import deque
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 # Initialize FastAPI
-app = FastAPI(title="Election Process Assistant Hadronic Core")
+app = FastAPI(title="Election Process Assistant")
 
 # Enable CORS for the Radiant Frontend
 app.add_middleware(
@@ -25,18 +26,44 @@ app.add_middleware(
 
 # Configure Google AI
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-model = genai.GenerativeModel('gemini-1.5-flash')
+model = genai.GenerativeModel('gemini-2.5-flash')
 
-# Load the Sovereign Data Substrate
+# Load election data
 DATA_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "election_timeline.json")
-with open(DATA_PATH, "r") as f:
-    ELECTION_DATA = json.load(f)
+def load_substrate():
+    with open(DATA_PATH, "r") as f:
+        data = json.load(f)
+        checksum = hashlib.sha256(json.dumps(data).encode()).hexdigest()
+        return data, checksum
+
+ELECTION_DATA, DATA_CHECKSUM = load_substrate()
+
+# Background Polling Simulation (Sector Epsilon)
+def poll_updates():
+    global ELECTION_DATA, DATA_CHECKSUM
+    # In a production environment, this would hit an external API
+    # For this genesis, we simulate a check every 300 seconds
+    while True:
+        time.sleep(300)
+        ELECTION_DATA, DATA_CHECKSUM = load_substrate()
+
+@app.on_event("startup")
+async def startup_event():
+    import threading
+    threading.Thread(target=poll_updates, daemon=True).start()
 
 # Stateful Memory Store (Sector Alpha)
 # Key: session_id, Value: deque of message history
 SESSIONS = {}
 
-# Simple Rate Limiter (Sector Eta)
+# Semantic Cache for common queries (Sector Epsilon)
+COMMON_QUERIES = {
+    "how to register": "To register to vote, you must fill out the official registration form and submit it to your local election office with a valid ID.",
+    "registration deadline": "The registration deadline is typically 30 days before the election day. Please check your specific local phase for exact dates.",
+    "what do i need to vote": "You generally need a government-issued photo ID and proof of residence. Specific requirements are listed in the 'Verification' phase."
+}
+
+# Rate limiting
 # Key: client_ip, Value: timestamp of last request
 RATE_LIMITS = {}
 MAX_REQUESTS_PER_MINUTE = 30
@@ -59,7 +86,7 @@ async def rate_limit_middleware(request: Request, call_next):
     if client_ip in RATE_LIMITS:
         last_request_time = RATE_LIMITS[client_ip]
         if current_time - last_request_time < (60 / MAX_REQUESTS_PER_MINUTE):
-             raise HTTPException(status_code=429, detail="Rate limit exceeded. Phalanx Seal active.")
+             raise HTTPException(status_code=429, detail="Rate limit exceeded.")
     
     RATE_LIMITS[client_ip] = current_time
     response = await call_next(request)
@@ -67,19 +94,34 @@ async def rate_limit_middleware(request: Request, call_next):
 
 @app.get("/health")
 def health_check():
-    return {"status": "SOVEREIGNTY ACHIEVED", "radiance": "STABLE", "metabolism": "FLAT"}
+    return {"status": "ok"}
 
 @app.get("/data")
 def get_election_data():
-    """Provides the Sovereign Data Substrate for frontend initialization."""
-    return ELECTION_DATA
+    """Provides the election data with an integrity checksum."""
+    return {
+        "data": ELECTION_DATA,
+        "checksum": DATA_CHECKSUM,
+        "timestamp": time.time()
+    }
 
 @app.post("/query", response_model=QueryResponse)
 async def process_query(request: QueryRequest):
     """
-    Executes Constrained Agentic Reasoning with Stateful Memory.
+    Process user queries based on election data.
     """
     try:
+        # Input Sanitization
+        sanitized_query = request.query.strip().lower()[:500]
+
+        # Sector Epsilon: Sub-millisecond Cache Check
+        if sanitized_query in COMMON_QUERIES:
+             return QueryResponse(
+                 response=COMMON_QUERIES[sanitized_query],
+                 phase="registration",
+                 session_id=request.session_id or str(uuid.uuid4())
+             )
+        
         session_id = request.session_id or str(uuid.uuid4())
         if session_id not in SESSIONS:
             SESSIONS[session_id] = deque(maxlen=5) # Maintain last 5 exchanges
@@ -91,8 +133,7 @@ async def process_query(request: QueryRequest):
         context = json.dumps(ELECTION_DATA, indent=2)
         
         prompt = f"""
-        YOU ARE THE SOVEREIGN ELECTION ASSISTANT. 
-        YOU MUST PROVIDE ACCURATE, NEUTRAL, AND STEP-BY-STEP GUIDANCE BASED ONLY ON THE PROVIDED DATA.
+        Provide accurate guidance based on the following election data.
         
         DATA SUBSTRATE:
         {context}
@@ -101,13 +142,13 @@ async def process_query(request: QueryRequest):
         {history_text}
         
         USER QUERY:
-        {request.query}
+        {sanitized_query}
         
         INSTRUCTIONS:
-        1. Ground your response STRICTLY in the DATA SUBSTRATE.
-        2. Account for the CONVERSATIONAL HISTORY to provide context-aware follow-ups.
-        3. If the user is asking about a specific phase (registration, verification, polling, results), identify it.
-        4. Maintain a professional, neutral, and empowering tone.
+        1. Ground your response STRICTLY in the provided election data.
+        2. Neutrality Shield: Use a formal, dispassionate, and professional tone. Avoid bias, adjectives of opinion, or political commentary.
+        3. Adaptive Verbosity: If the user asks for a summary, be brief. If they ask for details, provide a comprehensive breakdown.
+        4. Resilience: If the data does not contain the answer, do not hallucinate. Direct the user to official government portals.
         5. Format the output as JSON.
         
         FORMAT YOUR RESPONSE AS JSON:

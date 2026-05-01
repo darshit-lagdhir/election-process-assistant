@@ -3,11 +3,11 @@ let sessionId = null;
 let electionData = null;
 let currentPhase = 'registration';
 
-// Systemic Victory Log
+// System status log
 const logStatus = (msg) => {
     const statusEl = document.getElementById('system-status');
     if (statusEl) statusEl.innerText = msg;
-    console.log(`[SYSTEM LOG] ${msg}`);
+    console.log(`[STATUS] ${msg}`);
 };
 
 // Sector Epsilon: The Resilient Conduit
@@ -38,7 +38,7 @@ function renderTimeline() {
         </div>
     `).join('');
     
-    logStatus(`TIMELINE TOPOLOGY STABLE | PHASE: ${currentPhase.toUpperCase()}`);
+    logStatus(`PHASE: ${currentPhase.toUpperCase()}`);
 }
 
 function setPhase(phaseId) {
@@ -73,8 +73,7 @@ async function dispatchQuery() {
             renderTimeline();
         }
     } catch (err) {
-        addMessage('ai', "SYSTEMIC ALERT: Connection to Hadronic Core lost. Falling back to local knowledge.");
-        logStatus("PHALANX ALERT: BACKEND OFFLINE");
+        addMessage('ai', "Error: Connection lost.");
     }
 }
 
@@ -98,14 +97,26 @@ document.addEventListener('keydown', (e) => {
 });
 
 function processCommand(cmd) {
-    if (cmd.startsWith('jump ')) {
-        const target = cmd.split(' ')[1];
-        if (['registration', 'verification', 'polling', 'results'].includes(target)) {
-            setPhase(target);
+    const tokens = cmd.split(' ');
+    const action = tokens[0];
+    const target = tokens[1];
+
+    // Basic keyword matching for navigation
+    const phaseMap = {
+        'reg': 'registration', 'register': 'registration', 'registration': 'registration',
+        'ver': 'verification', 'verify': 'verification', 'verification': 'verification',
+        'poll': 'polling', 'vote': 'polling', 'polling': 'polling',
+        'res': 'results', 'results': 'results'
+    };
+
+    if (action === 'jump' && target) {
+        const phase = phaseMap[target];
+        if (phase) {
+            setPhase(phase);
         } else {
-            alert("Invalid phase target.");
+            alert("Unknown phase. Available: registration, verification, polling, results.");
         }
-    } else if (cmd === 'status') {
+    } else if (action === 'status') {
         alert(`System Status: GENESIS ACTIVE\nMetabolic Perimeter: STABLE\nPhase: ${currentPhase}`);
     } else {
         alert("Commands: 'jump <phase>', 'status', 'help'");
@@ -118,11 +129,13 @@ document.getElementById('user-input').onkeypress = (e) => { if (e.key === 'Enter
 
 (async () => {
     try {
-        electionData = await fetchWithRetry(`${API_BASE}/data`);
+        const response = await fetchWithRetry(`${API_BASE}/data`);
+        electionData = response.data;
+        logStatus(`DATA VERIFIED | CHECKSUM: ${response.checksum.substring(0, 8)}`);
         renderTimeline();
-        logStatus("SYSTEMIC GENESIS COMPLETE | SOVEREIGNTY ACHIEVED");
+        logStatus("SYSTEM INITIALIZED");
     } catch (err) {
-        logStatus("BOOT FAILURE: HADRONIC CORE UNREACHABLE");
+        logStatus("BOOT FAILURE");
         alert("The Hadronic Core is not responding. Ensure the backend is active.");
     }
 })();

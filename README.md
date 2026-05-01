@@ -1,12 +1,10 @@
-# Election Process Assistant: Sovereign Genesis
+# Election Process Assistant
 
-> **Status:** SYSTEMIC GENESIS COMPLETE | SOVEREIGNTY ACHIEVED | RADIANCE STABLE
+## 1. Overview
+The **Election Process Assistant** is a tool designed to guide users through the election process with clarity.
 
-## 1. Architectural Genesis
-The **Election Process Assistant** is a sovereign, agentic ecosystem designed to demystify the election process with absolute clarity and zero latency. Built as a part of the **Prompt Wars Genesis**, it adheres to a **Zero-Failure** mandate, ensuring that civic enlightenment is delivered through a mathematically robust and visually stunning interface.
-
-### The Cognitive Engine (Sector Alpha)
-The assistant utilizes **Constrained Agentic Reasoning**. Unlike generic LLMs, our cognitive kernel is grounded in a **Sovereign Data Substrate** (hierarchical JSON). This eliminates hallucination by forcing the reasoning chain to query local truth before formulating responses. The system is stateful, maintaining a memory of the citizen's journey to provide coherent, contextual guidance.
+### Logic and Data
+The assistant uses a multi-stage reasoning process grounded in local election data (JSON). This ensures responses are accurate and based on official timelines.
 
 ### The Radiant Interface (Sector Gamma & Zeta)
 The user experience is anchored by the **Progressive Disclosure** paradigm. Information is revealed dynamically as the user progresses through the election phases (Registration, Verification, Polling, Results). The UI features:

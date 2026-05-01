@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Election Process Assistant</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700;800&family=Fira+Code&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="glow-effect"></div>
+    <div id="system-status">SYSTEM INITIALIZED</div>
+
+    <div class="container">
+        <header>
+            <h1>ELECTION ASSISTANT</h1>
+            <p class="subtitle">Civic Information System</p>
+        </header>
+
+        <section class="timeline" id="timeline-container">
+            <!-- Dynamic Phase Cards -->
+        </section>
+
+        <section class="interaction-module">
+            <div id="chat-history">
+                <div class="message ai">
+                    How can I help you with the election process today?
+                </div>
+            </div>
+            <div class="input-container">
+                <input type="text" id="user-input" placeholder="Type your query..." autocomplete="off">
+                <button id="send-btn">Send</button>
+            </div>
+        </section>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
