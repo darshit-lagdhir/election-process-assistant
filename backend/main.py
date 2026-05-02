@@ -102,9 +102,9 @@ class UltimateHadronConfig:
         "gemini-flash-latest",
         "gemini-pro-latest",
     ]
-    MAX_OUTPUT_TOKENS: int = 4096
+    MAX_OUTPUT_TOKENS: int = 1024
     TEMPERATURE_STABILITY: float = 0.1
-    REASONING_TIMEOUT: float = 45.0  
+    REASONING_TIMEOUT: float = 25.0  
     MODEL_BLACKLIST_COOLDOWN: int = 600   # Fast cycle (10 mins)
     
     # METABOLIC PERIMETERS (SECTOR BETA)
@@ -441,8 +441,9 @@ class NeuralReasoningBridge:
             f"JURISDICTION: Primary focus is INDIA (Bharat), though you have global knowledge.\n\n"
             f"CRITICAL INSTRUCTIONS:\n"
             f"1. Use your Google Search tool to find REAL-TIME data for this specific query.\n"
-            f"2. If the user asks about 'current elections' or 'parties' without specifying a country, ASSUME INDIA unless context suggests otherwise.\n"
-            f"3. Return ONLY a clean, professional JSON object. NO markdown, NO code blocks, NO internal thought traces.\n\n"
+            f"2. If the user asks about 'current elections' or 'parties' without specifying a country, ASSUME INDIA.\n"
+            f"3. BE EXTREMELY CONCISE. Provide a SHORT summary (maximum 3 paragraphs). Avoid massive lists unless specifically asked.\n"
+            f"4. Return ONLY a clean, professional JSON object. NO markdown blocks.\n\n"
             f"FORMAT:\n"
             f'{{"answer": "Your comprehensive, grounded response here", "certainty": 1.0, "references": ["google_search_grounding"]}}\n\n'
             f"QUESTION: {query}"
@@ -475,7 +476,11 @@ class NeuralReasoningBridge:
                         lambda m=model: self._client.models.generate_content(
                             model=m,
                             contents=prompt,
-                            config={'tools': [{'google_search': {}}]}
+                            config={
+                                'tools': [{'google_search': {}}],
+                                'max_output_tokens': config.MAX_OUTPUT_TOKENS,
+                                'temperature': config.TEMPERATURE_STABILITY
+                            }
                         )
                     ),
                     timeout=config.REASONING_TIMEOUT
