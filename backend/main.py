@@ -122,10 +122,7 @@ class UltimateHadronConfig:
 
     @classmethod
     def get_api_key(cls) -> str:
-        key = os.getenv("GOOGLE_API_KEY")
-        if not key:
-            raise ValueError("!!! CRITICAL: GOOGLE_API_KEY is missing from the sovereign environment.")
-        return key.strip()
+        return os.getenv("GOOGLE_API_KEY", "").strip() or None
 
 config = UltimateHadronConfig()
 
@@ -233,8 +230,8 @@ class MemoryMonitor(MetabolicMonitor):
         return {
             "rss_mb": info.rss / (1024 * 1024),
             "vms_mb": info.vms / (1024 * 1024),
-            "uss_mb": full_info.uss / (1024 * 1024),
-            "swap_mb": info.pagefile / (1024 * 1024)
+            "uss_mb": getattr(full_info, 'uss', 0) / (1024 * 1024),
+            "shared_mb": getattr(info, 'shared', 0) / (1024 * 1024)
         }
 
 class IOMonitor(MetabolicMonitor):
@@ -453,6 +450,13 @@ class NeuralReasoningBridge:
 
     async def infer(self, query: str) -> Dict[str, Any]:
         """Try each available model in order. Fail fast and switch on error."""
+        if not self._client:
+            return {
+                "answer": "Neural bridge is offline. Please configure your GOOGLE_API_KEY in the environment variables.",
+                "certainty": 0.0,
+                "references": []
+            }
+        
         prompt = self._build_prompt(query)
         available = self._get_active_models()
 
