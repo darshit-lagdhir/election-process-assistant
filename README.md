@@ -146,3 +146,4 @@ This project is made for the community. You can use it, change it, and share it!
 ---
 **Created with ❤️ by Hadron Core Team**
 **Version 7.0.0-SOVEREIGN**
+
