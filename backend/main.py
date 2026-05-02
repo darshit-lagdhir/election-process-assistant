@@ -92,26 +92,20 @@ class UltimateHadronConfig:
     LOG_SUBSTRATE_PATH: str = os.path.join(BASE_DIR, "..", "logs", "hadron_forensics.log")
     
     # REASONING CALIBRATION
-    # Primary model + ultra-resilient fallback chain. 
-    # Tries every possible free-tier variant to bypass rate limits.
-    AI_MODEL_PRIMARY: str = "gemini-1.5-flash"
+    # Sovereign model chain calibrated for current high-tier API access.
+    AI_MODEL_PRIMARY: str = "gemini-2.5-flash"
     MODEL_FALLBACK_CHAIN: list = [
-        "gemini-1.5-flash",
-        "gemini-1.5-flash-latest",
-        "gemini-1.5-flash-001",
-        "gemini-1.5-flash-002",
-        "gemini-1.5-flash-8b",
-        "gemini-1.5-flash-8b-latest",
-        "gemini-2.0-flash-exp",
-        "gemini-1.5-pro",
-        "gemini-1.5-pro-latest",
-        "gemini-1.5-pro-001",
-        "gemini-1.5-pro-002",
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-3.1-flash-lite-preview",
+        "gemini-flash-latest",
+        "gemini-pro-latest",
     ]
     MAX_OUTPUT_TOKENS: int = 4096
     TEMPERATURE_STABILITY: float = 0.1
-    REASONING_TIMEOUT: float = 45.0  # Extra room for deep grounding
-    MODEL_BLACKLIST_COOLDOWN: int = 900   # Quicker retry (15 mins)
+    REASONING_TIMEOUT: float = 45.0  
+    MODEL_BLACKLIST_COOLDOWN: int = 600   # Fast cycle (10 mins)
     
     # METABOLIC PERIMETERS (SECTOR BETA)
     METABOLIC_FLOOR_MB: float = 10.0 
@@ -445,16 +439,16 @@ class NeuralReasoningBridge:
 
     def _build_prompt(self, query: str) -> str:
         return (
-            f"You are a Live Election Intelligence Engine with REAL-TIME web access. "
-            f"TODAY'S DATE: {datetime.now().strftime('%B %d, %Y')}\n\n"
-            f"Instructions:\n"
-            f"- If the query is a simple greeting (like 'hi', 'hello'), respond with a SHORT, friendly one-sentence welcome.\n"
-            f"- For information queries, use your Google Search tool to provide accurate, REAL-TIME data.\n"
-            f"- Be concise and authoritative. Do not provide a massive briefing unless specifically asked.\n\n"
-            f"QUESTION: {query}\n\n"
-            f"Return ONLY a JSON object in this exact format:\n"
-            f'  {{"answer": "your concise response here", "certainty": 1.0, "references": ["google_search_grounding"]}}\n'
-            f"- No markdown, no extra text, just the JSON."
+            f"You are the Hadron Core, a Sovereign Election Intelligence Engine with REAL-TIME web access.\n"
+            f"TODAY'S DATE: {datetime.now().strftime('%B %d, %Y')}\n"
+            f"JURISDICTION: Primary focus is INDIA (Bharat), though you have global knowledge.\n\n"
+            f"CRITICAL INSTRUCTIONS:\n"
+            f"1. Use your Google Search tool to find REAL-TIME data for this specific query.\n"
+            f"2. If the user asks about 'current elections' or 'parties' without specifying a country, ASSUME INDIA unless context suggests otherwise.\n"
+            f"3. Return ONLY a clean, professional JSON object. NO markdown, NO code blocks, NO internal thought traces.\n\n"
+            f"FORMAT:\n"
+            f'{{"answer": "Your comprehensive, grounded response here", "certainty": 1.0, "references": ["google_search_grounding"]}}\n\n'
+            f"QUESTION: {query}"
         )
 
     async def infer(self, query: str) -> Dict[str, Any]:
@@ -482,15 +476,24 @@ class NeuralReasoningBridge:
                     ),
                     timeout=config.REASONING_TIMEOUT
                 )
-                raw_text = response.text.strip().strip("`").strip()
-                # Strip markdown json block if present
-                if raw_text.startswith("json"):
-                    raw_text = raw_text[4:].strip()
-                if raw_text.startswith("{") and raw_text.endswith("}"):
+                raw_text = response.text.strip()
+                # NEURAL SCRUBBING: Remove markdown wrappers and internal code traces
+                if "```json" in raw_text:
+                    raw_text = raw_text.split("```json")[1].split("```")[0].strip()
+                elif "```" in raw_text:
+                    raw_text = raw_text.split("```")[1].strip()
+                
+                # Strip internal tool hallucinations
+                if "<script>" in raw_text:
+                    raw_text = raw_text.split("<script>")[0].strip()
+                
+                try:
                     result = json.loads(raw_text)
-                else:
-                    result = {"answer": raw_text, "certainty": 0.9, "references": []}
+                except json.JSONDecodeError:
+                    # If JSON fails, it might be raw text — wrap it
+                    result = {"answer": raw_text, "certainty": 0.9, "references": ["neural_recovery"]}
                 print(f"[MODEL CHAIN] Success with: {model}")
+                result["model_active"] = model
                 return result
 
             except asyncio.TimeoutError:
@@ -541,6 +544,7 @@ class ResponseSynthesizer:
             "status": "success",
             "session_id": session_id,
             "response": core_packet,
+            "model_active": reasoning.get("model_active", "Recovery Conduit"),
             "integrity": {
                 "version": config.ARCHITECTURAL_VERSION
             },

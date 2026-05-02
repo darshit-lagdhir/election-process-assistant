@@ -3,50 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Election Assistant</title>
-    <meta name="description" content="A professional civic intelligence assistant for election process guidance.">
+    <title>Hadron | Sovereign Intelligence</title>
     <link rel="stylesheet" href="index.css">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
-<body class="chat-theme">
-    <div id="app-wrapper">
-        <header id="main-header">
-            <div class="header-content">
-                <div class="logo">
-                    <div class="status-indicator"></div>
-                    <h1>Hadron Core</h1>
-                    <span class="v-tag">v7.0-SOVEREIGN</span>
-                </div>
-                <div id="connection-status">Connecting...</div>
+<body>
+    <div id="hadron-viewport">
+        <header id="core-header">
+            <div class="core-identity">
+                <h1>Hadron</h1>
+            </div>
+            <div class="system-status">
+                <span id="status-text">Neural Link Active</span>
+                <span id="active-model">Conduit: Auto-Switching</span>
             </div>
         </header>
 
-        <main id="chat-container">
-            <div id="messages-list">
-                <div class="message ai greeting">
-                    <div class="message-content">
-                        Hello. I am your Election Process Assistant. How can I assist you with the election process today?
-                    </div>
+        <main id="neural-stream">
+            <div class="thought-bubble hadron">
+                <span class="role-tag">Hadron Core</span>
+                <div class="bubble-content">I am the Hadron Core, your Sovereign Election Intelligence. How can I assist you with the election process today?</div>
+                <div class="meta-info">
+                    <span class="grounding-tag">Verified Source</span>
                 </div>
             </div>
         </main>
 
-        <footer id="input-section">
-            <div class="input-wrapper">
-                <form id="chat-form">
-                    <input type="text" id="user-input" placeholder="Type your question here..." autocomplete="off">
-                    <button type="submit" id="send-btn">
-                        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M22 2L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                            <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                    </button>
-                </form>
+        <div id="interaction-layer">
+            <div id="quick-orbs">
+                <div class="orb" data-query="How do I register to vote?">Registration</div>
+                <div class="orb" data-query="Who are the main candidates?">Candidates</div>
+                <div class="orb" data-query="Latest election results?">Results</div>
+                <div class="orb" data-query="Electoral security?">Security</div>
             </div>
-            <p class="disclaimer">Powered by Hadron Core Engine. All responses are verified.</p>
-        </footer>
+
+            <div id="thought-trace">
+                <span>Neural Grounding in Progress...</span>
+            </div>
+            
+            <form id="command-form">
+                <div id="command-bar">
+                    <input type="text" id="citizen-input" placeholder="Ask a question about elections..." autocomplete="off">
+                    <button type="submit" id="execute-btn" class="action-btn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <script src="app.js"></script>

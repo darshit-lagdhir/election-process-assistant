@@ -1,161 +1,160 @@
 /**
- * Election Assistant: Frontend Logic
- * Refactored for professional Chat UI/UX.
+ * Hadron Core: Sovereign Minimalist Interface (v7.0)
+ * Fixed visibility and input capture logic.
  */
 
-class StateManager {
+class HadronStore {
     constructor() {
         this.state = {
-            isConnected: false,
             isProcessing: false,
-            history: []
+            isConnected: false
         };
-        this.subscribers = [];
+        this.listeners = [];
     }
 
-    update(newState) {
-        this.state = { ...this.state, ...newState };
-        this.subscribers.forEach(sub => sub(this.state));
+    update(patch) {
+        this.state = { ...this.state, ...patch };
+        this.listeners.forEach(fn => fn(this.state));
     }
 
-    subscribe(callback) {
-        this.subscribers.push(callback);
-    }
-}
-
-const Store = new StateManager();
-
-class APIProtocol {
-    static async transmit(endpoint, payload) {
-        try {
-            const response = await fetch(endpoint, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
-            if (!response.ok) throw new Error(`HTTP_${response.status}`);
-            return await response.json();
-        } catch (err) {
-            console.error("API_PROTOCOL_ERROR", err);
-            throw err;
-        }
+    subscribe(fn) {
+        this.listeners.push(fn);
     }
 }
 
-class ChatInterface {
+const Store = new HadronStore();
+
+class HadronInterface {
     constructor() {
-        this.messagesList = document.getElementById('messages-list');
-        this.chatForm = document.getElementById('chat-form');
-        this.userInput = document.getElementById('user-input');
-        this.sendBtn = document.getElementById('send-btn');
-        this.connectionStatus = document.getElementById('connection-status');
-        
+        this.stream = document.getElementById('neural-stream');
+        this.form = document.getElementById('command-form');
+        this.input = document.getElementById('citizen-input');
+        this.btn = document.getElementById('execute-btn');
+        this.trace = document.getElementById('thought-trace');
+        this.statusText = document.getElementById('status-text');
+        this.modelDisplay = document.getElementById('active-model');
+
         this.init();
     }
 
     init() {
-        this.chatForm.addEventListener('submit', (e) => this.handleSubmit(e));
-        Store.subscribe((state) => this.renderState(state));
+        this.form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.handleUserInquiry(this.input.value);
+        });
         
-        this.initializeConnection();
+        document.querySelectorAll('.orb').forEach(orb => {
+            orb.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const query = orb.getAttribute('data-query') || orb.dataset.query;
+                console.log("[HUD] Orb Clicked. Query:", query);
+                if (query) this.handleUserInquiry(query);
+            });
+        });
+
+        Store.subscribe((state) => this.syncUI(state));
+        this.connectTelemetry();
     }
 
-    initializeConnection() {
+    connectTelemetry() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}/ws/v6/hadron/telemetry`;
-        
-        this.socket = new WebSocket(wsUrl);
+        const socket = new WebSocket(wsUrl);
 
-        this.socket.onopen = () => {
+        socket.onopen = () => {
             Store.update({ isConnected: true });
-            this.connectionStatus.textContent = "Securely Connected";
-            this.connectionStatus.style.color = "#22c55e";
+            this.statusText.textContent = "Neural Link Active";
         };
 
-        this.socket.onmessage = (event) => {
-            const data = JSON.parse(event.data);
-            // We can handle background updates here if needed
-        };
+        socket.onmessage = () => { /* Metrics inactive */ };
 
-        this.socket.onclose = () => {
+        socket.onclose = () => {
             Store.update({ isConnected: false });
-            this.connectionStatus.textContent = "Disconnected. Reconnecting...";
-            this.connectionStatus.style.color = "#ef4444";
-            setTimeout(() => this.initializeConnection(), 5000);
+            this.statusText.textContent = "Reconnecting...";
+            setTimeout(() => this.connectTelemetry(), 5000);
         };
     }
 
-    async handleSubmit(e) {
-        e.preventDefault();
-        const query = this.userInput.value.trim();
-        if (!query || Store.state.isProcessing) return;
+    async handleUserInquiry(query) {
+        const text = query.trim();
+        if (!text || Store.state.isProcessing) return;
 
-        // User Message
-        this.appendMessage('user', query);
-        this.userInput.value = '';
+        // Clear input and append user message
+        this.input.value = '';
+        this.appendMessage('citizen', text);
         Store.update({ isProcessing: true });
 
-        // Show Processing
-        this.showProcessing();
-
         try {
-            const result = await APIProtocol.transmit('/api/v6/hadron/reason', { query });
-            this.hideProcessing();
+            const response = await fetch('/api/v6/hadron/reason', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: text })
+            });
+
+            const data = await response.json();
+            const answer = data.response?.answer || data.answer || "Critical fault in neural conduit.";
             
-            // Core Extraction Logic: Navigate the radiant response packet
-            let answer = "No response received.";
-            if (result.response && result.response.answer) {
-                answer = result.response.answer;
-            } else if (result.answer) {
-                answer = result.answer;
-            }
-            
-            this.appendMessage('ai', answer);
-        } catch (error) {
-            this.hideProcessing();
-            this.appendMessage('ai', "I'm sorry, I encountered a communication error. Please try again.");
+            await this.typeResponse(answer, data.model_active);
+        } catch (err) {
+            this.appendMessage('hadron', "Neural bridge failed. Check connection.");
         } finally {
             Store.update({ isProcessing: false });
         }
     }
 
     appendMessage(role, text) {
-        const msgDiv = document.createElement('div');
-        msgDiv.className = `message ${role}`;
-        msgDiv.innerHTML = `<div class="message-content">${text}</div>`;
-        this.messagesList.appendChild(msgDiv);
+        const bubble = document.createElement('div');
+        bubble.className = `thought-bubble ${role}`;
         
-        // Auto-scroll to bottom
-        const container = document.getElementById('chat-container');
-        container.scrollTop = container.scrollHeight;
-    }
-
-    showProcessing() {
-        const procDiv = document.createElement('div');
-        procDiv.id = 'processing-indicator';
-        procDiv.className = 'message ai processing';
-        procDiv.innerHTML = `<div class="message-content">Thinking...</div>`;
-        this.messagesList.appendChild(procDiv);
+        const tag = document.createElement('span');
+        tag.className = 'role-tag';
+        tag.textContent = role === 'hadron' ? 'Hadron Core' : 'Citizen';
         
-        const container = document.getElementById('chat-container');
-        container.scrollTop = container.scrollHeight;
+        const content = document.createElement('div');
+        content.className = 'bubble-content';
+        content.textContent = text;
+        
+        bubble.appendChild(tag);
+        bubble.appendChild(content);
+        
+        this.stream.appendChild(bubble);
+        this.scrollToBottom();
     }
 
-    hideProcessing() {
-        const indicator = document.getElementById('processing-indicator');
-        if (indicator) indicator.remove();
+    scrollToBottom() {
+        requestAnimationFrame(() => {
+            this.stream.scrollTo({ top: this.stream.scrollHeight, behavior: 'smooth' });
+        });
     }
 
-    renderState(state) {
-        this.sendBtn.disabled = state.isProcessing;
-        this.userInput.disabled = state.isProcessing;
-        if (!state.isProcessing) {
-            this.userInput.focus();
+    async typeResponse(text, activeModel) {
+        if (activeModel) this.modelDisplay.textContent = `Conduit: ${activeModel}`;
+        
+        const bubble = document.createElement('div');
+        bubble.className = `thought-bubble hadron`;
+        bubble.innerHTML = `
+            <span class="role-tag">Hadron Core</span>
+            <div class="bubble-content"></div>
+            <div class="meta-info"><span class="grounding-tag">Verified Source</span></div>
+        `;
+        this.stream.appendChild(bubble);
+        
+        const contentDiv = bubble.querySelector('.bubble-content');
+        const words = text.split(' ');
+        
+        for (let i = 0; i < words.length; i++) {
+            contentDiv.textContent += words[i] + ' ';
+            this.scrollToBottom();
+            if (i % 3 === 0) await new Promise(r => setTimeout(r, 10));
         }
+    }
+
+    syncUI(state) {
+        this.btn.disabled = state.isProcessing;
+        this.input.disabled = state.isProcessing;
+        this.trace.classList.toggle('active', state.isProcessing);
+        if (!state.isProcessing) this.input.focus();
     }
 }
 
-// Initialize on load
-window.addEventListener('DOMContentLoaded', () => {
-    new ChatInterface();
-});
+window.addEventListener('DOMContentLoaded', () => new HadronInterface());
