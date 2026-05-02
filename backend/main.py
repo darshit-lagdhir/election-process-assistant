@@ -439,13 +439,8 @@ class NeuralReasoningBridge:
             f"You are the Hadron Core, a Sovereign Election Intelligence Engine with REAL-TIME web access.\n"
             f"TODAY'S DATE: {datetime.now().strftime('%B %d, %Y')}\n"
             f"JURISDICTION: Primary focus is INDIA (Bharat), though you have global knowledge.\n\n"
-            f"CRITICAL INSTRUCTIONS:\n"
-            f"1. Use your Google Search tool to find REAL-TIME data for this specific query.\n"
-            f"2. If the user asks about 'current elections' or 'parties' without specifying a country, ASSUME INDIA.\n"
-            f"3. BE EXTREMELY CONCISE. Provide a SHORT summary (maximum 3 paragraphs). Avoid massive lists unless specifically asked.\n"
-            f"4. Return ONLY a clean, professional JSON object. NO markdown blocks.\n\n"
-            f"FORMAT:\n"
-            f'{{"answer": "Your comprehensive, grounded response here", "certainty": 1.0, "references": ["google_search_grounding"]}}\n\n'
+            f"INSTRUCTION: Use Google Search to find REAL-TIME data. BE EXTREMELY CONCISE (max 3 paragraphs).\n"
+            f"FORMAT: Return ONLY a plain text summary. No JSON. No markdown. No citations like [cite:X].\n\n"
             f"QUESTION: {query}"
         )
 
@@ -460,11 +455,6 @@ class NeuralReasoningBridge:
         
         prompt = self._build_prompt(query)
         available = self._get_active_models()
-
-        if not available:
-            # All models blacklisted — try the primary anyway as last resort
-            available = [config.AI_MODEL_PRIMARY]
-            print("[MODEL CHAIN] All models blacklisted — forcing primary model.")
 
         for model in available:
             print(f"[MODEL CHAIN] Trying: {model}")
@@ -485,25 +475,21 @@ class NeuralReasoningBridge:
                     ),
                     timeout=config.REASONING_TIMEOUT
                 )
-                raw_text = response.text.strip()
-                # NEURAL SCRUBBING: Remove markdown wrappers and internal code traces
-                if "```json" in raw_text:
-                    raw_text = raw_text.split("```json")[1].split("```")[0].strip()
-                elif "```" in raw_text:
-                    raw_text = raw_text.split("```")[1].strip()
                 
-                # Strip internal tool hallucinations
-                if "<script>" in raw_text:
-                    raw_text = raw_text.split("<script>")[0].strip()
+                # DIRECT INSIGHT: Treat the entire output as a clean response
+                answer = response.text.strip()
                 
-                try:
-                    result = json.loads(raw_text)
-                except json.JSONDecodeError:
-                    # If JSON fails, it might be raw text — wrap it
-                    result = {"answer": raw_text, "certainty": 0.9, "references": ["neural_recovery"]}
+                # Remove any leftover JSON or markdown hallucinations
+                for char in ['{', '}', '```', 'json']:
+                    answer = answer.replace(char, '')
+                
                 print(f"[MODEL CHAIN] Success with: {model}")
-                result["model_active"] = model
-                return result
+                return {
+                    "answer": answer,
+                    "certainty": 1.0,
+                    "references": ["google_search_grounding"],
+                    "model_active": model
+                }
 
             except asyncio.TimeoutError:
                 print(f"[MODEL CHAIN] {model} timed out after {config.REASONING_TIMEOUT}s — switching.")
