@@ -1,23 +1,21 @@
 services:
   - type: web
-    name: election-process-assistant-kernel
+    name: hadron-core-citadel
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: python -m backend.main
+    startCommand: python start.py
     envVars:
       - key: PORT
-        value: 8000
-      - key: ARCHITECTURAL_VERSION
-        value: v16.0.0-SINGULARITY
-      - key: CPU_CONCURRENCY_THRESHOLD
-        value: 4
+        value: 10000
+      - key: GOOGLE_API_KEY
+        sync: false
       - key: SESSION_SECRET
         generateValue: true
-      - key: GEMINI_API_KEY
-        sync: false
+      - key: METABOLIC_FLOOR_MB
+        value: "10.0"
     healthCheckPath: /kernel/health
     numInstances: 1
     disk:
-      name: data-integrity-substrate
+      name: hadron-data-substrate
       mountPath: /data
       sizeGB: 1
