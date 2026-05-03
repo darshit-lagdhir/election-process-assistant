@@ -85,18 +85,22 @@ class HadronInterface {
         Store.update({ isProcessing: true });
 
         try {
-            const response = await fetch('/api/v6/hadron/reason', {
+            const response = await fetch('/api/v1/reason', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query: text })
+                body: JSON.stringify({ query: text, session_id: 'sovereign_citizen' })
             });
 
             const data = await response.json();
-            const answer = data.response?.answer || data.answer || "Critical fault in neural conduit.";
-            
+            if (data.status === "bridge_fault" || data.status === "quarantine" || data.status === "latency_limit") {
+                this.appendMessage('hadron', `FAULT: ${data.error || "Neural bridge failed."}`);
+                return;
+            }
+
+            const answer = data.answer || data.response?.answer || "Critical fault in neural conduit.";
             await this.typeResponse(answer, data.model_active);
         } catch (err) {
-            this.appendMessage('hadron', "Neural bridge failed. Check connection.");
+            this.appendMessage('hadron', `Neural conduit collapse: ${err.message}`);
         } finally {
             Store.update({ isProcessing: false });
         }

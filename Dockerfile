@@ -1,5 +1,5 @@
-# Production Dockerfile for Election Process Assistant
-FROM python:3.11-slim as builder
+# Hardened Production Dockerfile for Hadron Core
+FROM python:3.12-slim as builder
 
 WORKDIR /app
 
@@ -14,7 +14,7 @@ COPY requirements.txt .
 RUN pip install --user --no-cache-dir -r requirements.txt
 
 # Runtime Stage
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
@@ -28,15 +28,15 @@ COPY --from=builder /root/.local /root/.local
 COPY . .
 
 # Metadata labels
-LABEL project="Election Process Assistant"
-LABEL version="6.0.0"
-LABEL type="backend"
+LABEL project="Hadron Core Election Assistant"
+LABEL version="9.0.0-AGNOSTIC"
+LABEL type="sovereign-intelligence"
 
 EXPOSE 8000
 
 # Healthcheck
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:8000/api/health || exit 1
+  CMD curl -f http://localhost:8000/kernel/health || exit 1
 
-# Start application (single worker — scale via docker-compose replicas)
-CMD ["python", "backend/main.py"]
+# Start application via Master Ignition
+CMD ["python", "start.py"]

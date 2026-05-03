@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: election-process-assistant-kernel
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python -m backend.main
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: ARCHITECTURAL_VERSION
+        value: v16.0.0-SINGULARITY
+      - key: CPU_CONCURRENCY_THRESHOLD
+        value: 4
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+    healthCheckPath: /kernel/health
+    numInstances: 1
+    disk:
+      name: data-integrity-substrate
+      mountPath: /data
+      sizeGB: 1

@@ -1,21 +1,26 @@
-# Docker Compose for Election Process Assistant
+# Sovereign Compose for Hadron Core
 version: '3.8'
 
 services:
-  election_assistant:
+  hadron-core:
     build: .
+    image: hadron-core:9.0.0
+    container_name: hadron_citadel
     ports:
       - "8000:8000"
-    environment:
-      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
-      - SESSION_SECRET=${SESSION_SECRET}
+    env_file:
+      - .env
     volumes:
       - ./data:/app/data
       - ./logs:/app/logs
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/kernel/health"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
+      start_period: 15s
+
+networks:
+  default:
+    name: hadron-network
